@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""Reference fetcher skeleton for Agent Feeds v0.3."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from urllib.parse import urlparse
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover
+    yaml = None
+
+
+SPEC_VERSION = "0.3"
+AGENTFEEDS_VERSION = "agentfeeds/0.3"
+DEFAULT_ROOT = Path.home() / ".agentfeeds"
+
+
+def now_utc() -> str:
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def state_path_for_stream(stream_uri: str, root: Path = DEFAULT_ROOT) -> Path:
+    parsed = urlparse(stream_uri)
+    if parsed.scheme != "feed" or not parsed.netloc:
+        raise ValueError(f"invalid feed URI: {stream_uri}")
+
+    path = parsed.path.lstrip("/").replace("/", ".")
+    name = path or "index"
+    if parsed.query:
+        name = f"{name}.{parsed.query.replace('&', ',')}"
+    return root / "state" / parsed.netloc / f"{name}.json"
+
+
+def atomic_write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    with tmp_path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    tmp_path.replace(path)
+
+
+def ensure_root(root: Path) -> None:
+    (root / "catalog-cache").mkdir(parents=True, exist_ok=True)
+    (root / "state").mkdir(parents=True, exist_ok=True)
+    subscriptions = root / "subscriptions.yaml"
+    if not subscriptions.exists():
+        subscriptions.write_text(
+            'version: "0.3"\n'
+            "defaults:\n"
+            "  poll_interval_seconds: 600\n"
+            "  history_limit: 50\n"
+            "subscriptions: []\n",
+            encoding="utf-8",
+        )
+
+
+def load_subscriptions(root: Path) -> dict:
+    if yaml is None:
+        raise RuntimeError("PyYAML is required to read subscriptions.yaml")
+    path = root / "subscriptions.yaml"
+    if not path.exists():
+        return {"version": SPEC_VERSION, "subscriptions": []}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def update_catalog_cache(root: Path) -> None:
+    source = repo_root() / "catalog" / "INDEX.json"
+    if not source.exists():
+        raise FileNotFoundError(f"catalog index not found: {source}")
+    target = root / "catalog-cache" / "INDEX.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+
+
+def regenerate_catalog(root: Path) -> None:
+    lines = [
+        "# Agent Feeds - Active Subscriptions",
+        "",
+        "This file lists data streams currently subscribed. Detailed state lives in `state/<...>.json`. Read those files when the user asks about the relevant topic.",
+        "",
+    ]
+    state_root = root / "state"
+    state_files = sorted(state_root.glob("**/*.json")) if state_root.exists() else []
+    if not state_files:
+        lines.extend(["No active state files found.", ""])
+
+    for path in state_files:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            meta = payload.get("_meta", {})
+        except (OSError, json.JSONDecodeError):
+            continue
+        title = f"{meta.get('type', 'unknown')} - {meta.get('publisher', 'unknown')}"
+        rel_path = path.relative_to(root)
+        lines.extend(
+            [
+                f"## {title}",
+                f"- **Stream:** `{meta.get('stream', '')}`",
+                f"- **Path:** `{rel_path}`",
+                f"- **Updated:** {meta.get('last_updated', 'unknown')}",
+                f"- **Stale:** {'yes' if meta.get('stale') else 'no'}",
+                f"- **Mode:** {meta.get('mode', 'unknown')}",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "---",
+            f"*Last regenerated: {now_utc()}. Agent: when the user asks about a topic above, read the corresponding state file. Do not web-search if a non-stale state file covers the question.*",
+            "",
+        ]
+    )
+    (root / "catalog.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def run_fetch(args: argparse.Namespace, root: Path) -> int:
+    subscriptions = load_subscriptions(root)
+    active = subscriptions.get("subscriptions") or []
+    if args.once:
+        active = [sub for sub in active if sub.get("id") == args.once]
+    if args.stream:
+        active = [sub for sub in active if sub.get("id") == args.stream]
+
+    if not active:
+        regenerate_catalog(root)
+        return 0
+
+    print("adapter execution is not implemented in this skeleton", file=sys.stderr)
+    return 2
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Fetch Agent Feeds subscriptions")
+    parser.add_argument("--all", action="store_true", help="refresh every subscription")
+    parser.add_argument("--stream", help="refresh one stream id")
+    parser.add_argument("--once", help="one-shot fetch for a stream id")
+    parser.add_argument("--regenerate-catalog", action="store_true", help="regenerate catalog.md without polling")
+    parser.add_argument("--update-catalog", action="store_true", help="refresh the local catalog cache")
+    parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="agentfeeds root directory")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    root = args.root.expanduser()
+    ensure_root(root)
+
+    if args.update_catalog:
+        update_catalog_cache(root)
+    if args.regenerate_catalog:
+        regenerate_catalog(root)
+        return 0
+    return run_fetch(args, root)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
