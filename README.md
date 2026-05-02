@@ -8,7 +8,7 @@ Personal agents often start sessions blind: users repeat project context, paste 
 
 ## Quick Demo
 
-![Agent Feeds terminal demo](docs/assets/agentfeeds-demo.gif)
+![Agent Feeds interactive session demo](docs/assets/agentfeeds-demo.gif)
 
 Install the Hermes integration:
 

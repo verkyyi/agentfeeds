@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the Agent Feeds launch terminal demo GIF."""
+"""Render the Agent Feeds launch interactive-session demo GIF."""
 
 from __future__ import annotations
 
@@ -20,14 +20,15 @@ GREEN = "#83e6a6"
 CYAN = "#78dce8"
 YELLOW = "#ffd166"
 PINK = "#ff7eb6"
+BLUE = "#9cc9ff"
 
 
 def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = [
         "/System/Library/Fonts/Menlo.ttc",
         "/System/Library/Fonts/Supplemental/Menlo.ttc",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf" if bold else "",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
     ]
     for path in candidates:
         if path and Path(path).exists():
@@ -36,25 +37,43 @@ def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.Im
 
 TITLE = font(34, True)
 SUB = font(20)
-MONO = font(24)
-SMALL = font(19)
+MONO = font(22)
+SMALL = font(18)
 
 
-def wrap_lines(text: str, width: int = 78) -> list[str]:
+def wrap_lines(text: str, width: int = 82) -> list[str]:
     lines: list[str] = []
     for raw in text.strip("\n").splitlines():
         if not raw:
             lines.append("")
+        elif raw.startswith("  ") or raw.startswith("- ") or raw.startswith("<") or raw.startswith("</"):
+            lines.append(raw)
         else:
             lines.extend(textwrap.wrap(raw, width=width, replace_whitespace=False) or [""])
     return lines
+
+
+def line_color(line: str) -> str:
+    stripped = line.strip()
+    if stripped.startswith("User:"):
+        return GREEN
+    if stripped.startswith("Hermes:"):
+        return YELLOW
+    if stripped.startswith("<agentfeeds>") or stripped.startswith("</agentfeeds>"):
+        return CYAN
+    if stripped.startswith("-"):
+        return BLUE
+    if "read ~/.agentfeeds/catalog.md" in line or "before web search" in line:
+        return PINK
+    if "fresh" in line.lower() or "local state" in line.lower() or "without web search" in line.lower():
+        return CYAN
+    return TEXT
 
 
 def frame(title: str, subtitle: str, body: str, highlight: str = "") -> Image.Image:
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
 
-    # soft data-grid background
     for x in range(0, W, 40):
         d.line((x, 0, x, H), fill="#0a1723")
     for y in range(0, H, 40):
@@ -69,21 +88,12 @@ def frame(title: str, subtitle: str, body: str, highlight: str = "") -> Image.Im
     d.text((84, 158), subtitle, fill=MUTED, font=SUB)
     d.line((82, 196, W - 82, 196), fill=BORDER, width=2)
 
-    y = 226
-    for line in wrap_lines(body, width=74):
-        color = TEXT
-        if line.startswith("$"):
-            color = GREEN
-        elif line.startswith("#") or line.startswith("##"):
-            color = CYAN
-        elif "Subscribed:" in line or "fresh, ok" in line or "Stale: no" in line:
-            color = GREEN
-        elif "Hermes" in line or "local JSON" in line or "before web search" in line:
-            color = YELLOW
-        elif "not" in line.lower() and ("memory" in line.lower() or "prompt" in line.lower()):
-            color = PINK
-        d.text((84, y), line, fill=color, font=MONO if line.startswith("$") else SMALL)
-        y += 30 if line.startswith("$") else 25
+    y = 222
+    for line in wrap_lines(body):
+        color = line_color(line)
+        active_font = MONO if line.strip().startswith(("User:", "Hermes:", "<", "</")) or line.strip().startswith("-") else SMALL
+        d.text((84, y), line, fill=color, font=active_font)
+        y += 27 if active_font == MONO else 24
 
     if highlight:
         d.rounded_rectangle((82, H - 112, W - 82, H - 72), radius=12, fill="#112942", outline="#2f6f9f", width=1)
@@ -93,53 +103,53 @@ def frame(title: str, subtitle: str, body: str, highlight: str = "") -> Image.Im
 
 SCENES = [
     (
-        "Agent Feeds",
-        "Local-first ambient context streams for Hermes and personal agents",
-        "Agents often start sessions blind. Users repeat context, paste big prompt blobs, or make the agent re-search state that could already be fresh locally.\n\nAgent Feeds keeps subscriptions and JSON state under ~/.agentfeeds, then gives Hermes only a compact catalog.",
-        "Agents need feeds, not just memory.",
-        2800,
-    ),
-    (
-        "1. Discover providers",
-        "The operator asks for outcomes; the CLI is the inspectable control plane.",
-        "$ agentfeeds discover hacker\n\ndev/hackernews-frontpage: Hacker News front page [params: none, mode: event]",
-        "Find a stream the agent can subscribe to.",
-        2400,
-    ),
-    (
-        "2. Subscribe to public state",
-        "Subscriptions become concrete active context, not generic templates.",
-        "$ agentfeeds subscribe dev/hackernews-frontpage --title \"Hacker News front page\"\n\nSubscribed: dev/hackernews-frontpage (Hacker News front page)",
-        "Background refresh can keep this warm.",
-        2400,
-    ),
-    (
-        "3. Subscribe to private local state",
-        "Local files let a personal agent inspect project context without prompt stuffing.",
-        "$ agentfeeds subscribe local/file path=~/notes/project.md \\\n    --id local/project-notes-md \\\n    --title \"Project notes\"\n\nSubscribed: local/project-notes-md (Project notes)",
-        "Private context stays on the machine.",
-        2800,
-    ),
-    (
-        "4. Check active streams",
-        "The status view shows freshness and whether each fetch is healthy.",
-        "$ agentfeeds status\n\ndev/hackernews-frontpage: Hacker News front page, fresh, ok\nlocal/project-notes-md path=~/notes/project.md: Project notes, fresh, ok",
-        "Freshness is explicit, not guessed from chat history.",
-        2800,
-    ),
-    (
-        "5. Hermes sees a compact catalog",
-        "Detailed data stays in state files until relevant.",
-        "$ sed -n '1,80p' ~/.agentfeeds/catalog.md\n\n# Agent Feeds - Active Subscriptions\n\n## Hacker News front page\n- ID: dev/hackernews-frontpage\n- Path: state/hn.algolia.com/frontpage.json\n- Stale: no\n\n## Project notes\n- ID: local/project-notes-md\n- Path: state/local.file/file.project.md.<hash>.json\n- Stale: no",
-        "Compact prompt metadata; bulky JSON on disk.",
+        "Agent Feeds in a Hermes session",
+        "The demo is the agent experience, not the CLI.",
+        "A new Hermes session receives a compact list of available local streams.\n\nThe user just asks normal questions. Hermes chooses when to read ~/.agentfeeds/catalog.md and the matching JSON state file before web search.",
+        "Agents need feeds: fresh local state, read only when relevant.",
         3600,
     ),
     (
-        "6. Answer from local state",
-        "When relevant, Hermes reads the right state file before using web search.",
-        "$ Ask Hermes: \"What is on Hacker News right now from Agent Feeds?\"\n\nHermes reads ~/.agentfeeds/catalog.md, locates state/hn.algolia.com/frontpage.json, and answers from local JSON state before web search.",
+        "Session context injected once",
+        "Only a compact map enters the prompt; detailed state stays on disk.",
+        "<agentfeeds>\nAvailable local streams:\n- weather/santa-clara-current: Santa Clara current weather\n- dev/hackernews-frontpage: Hacker News front page\n- finance/quote-btc: BTC quote\n- news/openai-com: OpenAI News\n- ops/hermes-gateway-health: Hermes gateway health\n\nWhen relevant, read ~/.agentfeeds/catalog.md to locate the state file before web search.\n</agentfeeds>",
+        "Compact metadata in prompt. Bulky JSON remains local.",
+        5200,
+    ),
+    (
+        "Use case: current news without web search",
+        "The user asks naturally; Hermes sees a matching active stream.",
+        "User: What is on Hacker News right now?\n\nHermes: I see a fresh Hacker News front page stream. I’ll read the local Agent Feeds state file first instead of searching the web.\n\nHermes: Here are the top stories from the local HN snapshot, with scores and links.",
+        "Fresh answers from local state.",
+        4300,
+    ),
+    (
+        "Use case: personal ops awareness",
+        "Streams can cover private/local status, not just public feeds.",
+        "User: Is my Hermes gateway healthy?\n\nHermes: There is an ops/hermes-gateway-health stream. I’ll inspect the local state file.\n\nHermes: Gateway is healthy; latest check is fresh. If it were stale, I would refresh that stream before answering.",
+        "The agent can monitor local/private systems conversationally.",
+        4300,
+    ),
+    (
+        "Use case: market and weather snapshots",
+        "Snapshot streams answer quick factual questions without repeated setup.",
+        "User: What are BTC and MSFT doing, and what is Santa Clara weather?\n\nHermes: I see subscribed quote and weather streams. I’ll read the relevant local snapshots and summarize them together.\n\nHermes: Answer is grounded in timestamped Agent Feeds state, not chat memory.",
+        "Feeds are timestamped current context, not durable memory.",
+        4500,
+    ),
+    (
+        "Use case: followed AI sources",
+        "RSS/release streams keep the agent aware of sources the operator cares about.",
+        "User: Anything new from OpenAI, Anthropic, or Hermes Agent releases?\n\nHermes: I see active streams for OpenAI News, Anthropic RSS, and NousResearch/hermes-agent releases. I’ll read those local event files and report what changed.\n\nHermes: No need to paste URLs or restate which sources matter.",
+        "The session starts already oriented around your subscribed world.",
+        5000,
+    ),
+    (
+        "Why this matters",
+        "Agent Feeds is the ambient context layer between memory and tools.",
+        "Memory: durable facts about the user.\nFeeds: fresh, timestamped state around the user.\nTools: actions the agent can run when needed.\n\nAgent Feeds lets Hermes answer from local/private state first, while keeping the data path inspectable: catalog.md points to state/*.json.",
         "Not memory. Not prompt stuffing. Fresh inspectable feeds.",
-        3600,
+        5000,
     ),
 ]
 
