@@ -333,6 +333,20 @@ def poll_interval(subscription: dict, stream: dict, defaults: dict) -> int:
     )
 
 
+def provider_id_for(subscription: dict) -> str:
+    return str(subscription["provider"])
+
+
+def subscription_title(subscription: dict, stream: dict) -> str:
+    return str(subscription.get("title") or stream.get("title") or subscription["id"])
+
+
+def state_path_for_subscription(root: Path, subscription: dict) -> Path:
+    stream = load_stream_definition(root, provider_id_for(subscription))
+    stream_uri = source_uri_for(stream, subscription.get("parameters") or {})
+    return state_path_for_stream(stream_uri, root)
+
+
 def is_due(path: Path, interval_seconds: int, force: bool) -> bool:
     if force or not path.exists():
         return True
@@ -346,6 +360,7 @@ def is_due(path: Path, interval_seconds: int, force: bool) -> bool:
 
 
 def state_payload(
+    subscription: dict,
     stream: dict,
     stream_uri: str,
     events: list[dict],
@@ -367,8 +382,9 @@ def state_payload(
         "schema_version": stream["schema_version"],
         "publisher": publisher_for(stream_uri),
         "stale": False,
-        "subscription_id": stream["id"],
-        "title": stream["title"],
+        "subscription_id": subscription["id"],
+        "provider_id": stream["id"],
+        "title": subscription_title(subscription, stream),
     }
 
     if stream["mode"] == "snapshot":
@@ -404,40 +420,35 @@ def regenerate_catalog(root: Path) -> None:
         "This file lists data streams currently subscribed. Detailed state lives in `state/<...>.json`. Read those files when the user asks about the relevant topic.",
         "",
     ]
-    state_root = root / "state"
-    state_files = []
+    state_entries = []
     try:
         subscriptions = load_subscriptions(root).get("subscriptions") or []
         for subscription in subscriptions:
-            stream = load_stream_definition(root, subscription["id"])
-            stream_uri = source_uri_for(stream, subscription.get("parameters") or {})
+            stream = load_stream_definition(root, provider_id_for(subscription))
+            parameters = subscription.get("parameters") or {}
+            stream_uri = source_uri_for(stream, parameters)
             path = state_path_for_stream(stream_uri, root)
-            if path.exists():
-                state_files.append(path)
+            payload = load_existing_state(path) if path.exists() else {}
+            meta = (payload or {}).get("_meta", {})
+            state_entries.append((subscription, stream, stream_uri, path, meta))
     except Exception:
-        state_files = []
-    if not state_files:
-        state_files = sorted(state_root.glob("**/*.json")) if state_root.exists() else []
-    if not state_files:
+        state_entries = []
+    if not state_entries:
         lines.extend(["No active state files found.", ""])
 
-    for path in state_files:
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            meta = payload.get("_meta", {})
-        except (OSError, json.JSONDecodeError):
-            continue
-        title = meta.get("title") or f"{meta.get('type', 'unknown')} - {meta.get('publisher', 'unknown')}"
+    for subscription, stream, stream_uri, path, meta in state_entries:
+        title = subscription_title(subscription, stream)
         rel_path = path.relative_to(root)
         lines.extend(
             [
                 f"## {title}",
-                f"- **ID:** `{meta.get('subscription_id', '')}`",
-                f"- **Stream:** `{meta.get('stream', '')}`",
+                f"- **ID:** `{subscription.get('id', '')}`",
+                f"- **Provider:** `{provider_id_for(subscription)}`",
+                f"- **Stream:** `{meta.get('stream') or stream_uri}`",
                 f"- **Path:** `{rel_path}`",
-                f"- **Updated:** {meta.get('last_updated', 'unknown')}",
+                f"- **Updated:** {meta.get('last_updated', 'never')}",
                 f"- **Stale:** {'yes' if meta.get('stale') else 'no'}",
-                f"- **Mode:** {meta.get('mode', 'unknown')}",
+                f"- **Mode:** {meta.get('mode') or stream.get('mode', 'unknown')}",
                 "",
             ]
         )
@@ -469,7 +480,7 @@ def run_fetch(args: argparse.Namespace, root: Path) -> int:
     failures = 0
     for subscription in active:
         try:
-            stream = load_stream_definition(root, subscription["id"])
+            stream = load_stream_definition(root, provider_id_for(subscription))
             parameters = subscription.get("parameters") or {}
             stream_uri = source_uri_for(stream, parameters)
             path = state_path_for_stream(stream_uri, root)
@@ -481,7 +492,7 @@ def run_fetch(args: argparse.Namespace, root: Path) -> int:
             events = [event for event in events if event_matches_filter(event, subscription.get("filter"))]
             history_limit = int(subscription.get("history_limit") or defaults.get("history_limit") or 50)
             existing = load_existing_state(path)
-            payload = state_payload(stream, stream_uri, events, existing, interval_seconds, history_limit)
+            payload = state_payload(subscription, stream, stream_uri, events, existing, interval_seconds, history_limit)
             atomic_write_json(path, payload)
         except Exception as exc:  # noqa: BLE001 - keep cron-friendly failure reporting.
             failures += 1
@@ -494,8 +505,8 @@ def run_fetch(args: argparse.Namespace, root: Path) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Fetch Agent Feeds subscriptions")
     parser.add_argument("--all", action="store_true", help="refresh every subscription")
-    parser.add_argument("--stream", help="refresh one stream id")
-    parser.add_argument("--once", help="one-shot fetch for a stream id")
+    parser.add_argument("--stream", help="refresh one subscription id")
+    parser.add_argument("--once", help="one-shot fetch for a subscription id")
     parser.add_argument("--regenerate-catalog", action="store_true", help="regenerate catalog.md without polling")
     parser.add_argument("--update-catalog", action="store_true", help="refresh the local catalog cache")
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="agentfeeds root directory")

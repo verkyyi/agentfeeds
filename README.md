@@ -54,11 +54,17 @@ Start a new Codex session, then ask Codex to use the `agentfeeds` skill.
 For a direct smoke test, create a subscription and fetch once:
 
 ```bash
-agentfeeds subscribe weather/openmeteo-current lat=37.33 lon=-121.89
+agentfeeds subscribe weather/openmeteo-current lat=37.33 lon=-121.89 --id weather/san-jose-current --title "San Jose current weather"
 agentfeeds status
 ```
 
 Then inspect `~/.agentfeeds/catalog.md` and the state file it lists.
+
+Catalog entries are providers/templates. Active subscriptions are concrete instances:
+
+- `provider` points to the catalog stream implementation.
+- `id` is the concrete subscription shown to agents and used for refresh/unsubscribe.
+- `--id` and `--title` can override the generated instance identity.
 
 Manage subscriptions:
 
@@ -66,7 +72,9 @@ Manage subscriptions:
 agentfeeds discover weather
 agentfeeds list
 agentfeeds subscribe dev/hackernews-frontpage
+agentfeeds subscribe news/rss-generic url=https://openai.com/news/rss.xml --title "OpenAI News"
 agentfeeds unsubscribe dev/hackernews-frontpage
+agentfeeds refresh news/openai-com
 agentfeeds refresh --all
 agentfeeds status --json
 ```
@@ -113,7 +121,7 @@ Restart Hermes afterward. The plugin injects only compact stream metadata on eac
 ```text
 <agentfeeds>
 Available local streams:
-- weather/openmeteo-current: Current weather conditions (Open-Meteo)
+- weather/san-jose-current: San Jose current weather
 - dev/hackernews-frontpage: Hacker News front page
 
 When relevant, read ~/.agentfeeds/catalog.md to locate the state file before web search.

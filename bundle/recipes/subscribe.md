@@ -10,7 +10,8 @@ Use this when the user asks to subscribe to an ambient data stream.
    - `auth: none`
    - closest parameter fit to the user's request
 5. Fill all required parameters from the user's request.
-6. Run `agentfeeds subscribe <stream-id> key=value ...`.
-7. Read the new state file and confirm the subscription with a concise summary.
+6. Run `agentfeeds subscribe <provider-id> key=value ...`.
+7. If the user supplied a preferred name, pass `--id <subscription-id>` and/or `--title "<title>"`.
+8. Read the new state file and confirm the concrete subscription id with a concise summary.
 
 Do not write directly to `~/.agentfeeds/state/`.

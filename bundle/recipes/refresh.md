@@ -5,7 +5,7 @@ Use this when the user asks to refresh Agent Feeds data.
 For one stream:
 
 ```bash
-agentfeeds refresh <stream-id>
+agentfeeds refresh <subscription-id>
 ```
 
 For every stream:

@@ -31,7 +31,7 @@ State files are read-only from the agent perspective. Never edit files under `~/
 When a covered state file is stale and the user asks about current data, run:
 
 ```bash
-agentfeeds-fetch --stream <stream-id>
+agentfeeds-fetch --stream <subscription-id>
 ```
 
 Then re-read the state file and answer from the refreshed data.
@@ -47,8 +47,9 @@ Subscriptions are stored in `~/.agentfeeds/subscriptions.yaml`. Prefer the `agen
 Prefer the management CLI for subscription changes:
 
 ```bash
-agentfeeds subscribe <stream-id> key=value
-agentfeeds unsubscribe <stream-id>
+agentfeeds subscribe <provider-id> key=value
+agentfeeds subscribe <provider-id> key=value --id <subscription-id> --title "<title>"
+agentfeeds unsubscribe <subscription-id>
 agentfeeds discover <query>
 agentfeeds status
 ```

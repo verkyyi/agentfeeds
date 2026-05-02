@@ -39,7 +39,9 @@ def test_once_fetch_writes_snapshot_state_and_catalog(tmp_path, monkeypatch):
               poll_interval_seconds: 600
               history_limit: 50
             subscriptions:
-              - id: weather/openmeteo-current
+              - id: weather/santa-clara-current
+                title: Santa Clara current weather
+                provider: weather/openmeteo-current
                 parameters:
                   lat: 37.33
                   lon: -121.89
@@ -67,14 +69,18 @@ def test_once_fetch_writes_snapshot_state_and_catalog(tmp_path, monkeypatch):
 
     monkeypatch.setattr(fetcher.requests, "request", lambda *args, **kwargs: FakeResponse())
 
-    assert fetcher.main(["--root", str(tmp_path), "--once", "weather/openmeteo-current"]) == 0
+    assert fetcher.main(["--root", str(tmp_path), "--once", "weather/santa-clara-current"]) == 0
 
     state_path = tmp_path / "state" / "api.open-meteo.com" / "v1.forecast.latitude=37.33,longitude=-121.89.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
-    assert state["_meta"]["subscription_id"] == "weather/openmeteo-current"
+    assert state["_meta"]["subscription_id"] == "weather/santa-clara-current"
+    assert state["_meta"]["provider_id"] == "weather/openmeteo-current"
+    assert state["_meta"]["title"] == "Santa Clara current weather"
     assert state["_meta"]["stale"] is False
     assert state["data"]["temperature_c"] == 22.1
-    assert "weather/openmeteo-current" in (tmp_path / "catalog.md").read_text(encoding="utf-8")
+    catalog = (tmp_path / "catalog.md").read_text(encoding="utf-8")
+    assert "weather/santa-clara-current" in catalog
+    assert "weather/openmeteo-current" in catalog
 
 
 def test_event_state_merges_dedups_and_truncates(tmp_path):
@@ -99,7 +105,8 @@ def test_event_state_merges_dedups_and_truncates(tmp_path):
         {"id": "b", "data": {"value": 22}},
     ]
 
-    payload = fetcher.state_payload(stream, stream_uri, events, existing, 600, 2)
+    subscription = {"id": "dev/example-instance", "title": "Example instance", "provider": "dev/example"}
+    payload = fetcher.state_payload(subscription, stream, stream_uri, events, existing, 600, 2)
 
     assert [event["id"] for event in payload["data"]] == ["c", "b"]
     assert payload["data"][1]["data"]["value"] == 22

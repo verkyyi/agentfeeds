@@ -5,7 +5,7 @@ Use this when the user asks what Agent Feeds streams are available.
 1. Run `agentfeeds discover <query>`.
 2. Present the best matches with:
    - title
-   - stream id
+   - provider id
    - required parameters
    - auth requirement
    - quality tier

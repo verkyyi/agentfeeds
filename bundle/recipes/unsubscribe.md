@@ -2,7 +2,7 @@
 
 Use this when the user asks to remove an Agent Feeds subscription.
 
-1. Identify the subscription by stream id, state path, topic, or parameters.
-2. Run `agentfeeds unsubscribe <stream-id> key=value ...`.
-3. If multiple subscriptions match the same id, include distinguishing parameters or use `--all-matching` only when the user clearly wants every matching subscription removed.
+1. Identify the concrete subscription id by listing `agentfeeds list` or reading `~/.agentfeeds/catalog.md`.
+2. Run `agentfeeds unsubscribe <subscription-id>`.
+3. If the user names a provider/template instead, show matching concrete subscriptions and ask which one to remove.
 4. Confirm what was removed.

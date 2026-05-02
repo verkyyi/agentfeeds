@@ -223,22 +223,30 @@ defaults:
   poll_interval_seconds: 600
   history_limit: 50
 subscriptions:
-  - id: weather/openmeteo-current   # references catalog stream id
+  - id: weather/san-jose-current    # concrete active subscription id
+    title: San Jose current weather
+    provider: weather/openmeteo-current
     parameters:
       lat: 37.33
       lon: -121.89
     poll_interval_seconds: 600       # optional override
-  - id: dev/github-releases
+  - id: dev/anthropics-claude-code-releases
+    title: anthropics/claude-code releases
+    provider: dev/github-releases
     parameters:
       owner: anthropics
       repo: claude-code
     poll_interval_seconds: 3600
-  - id: geo/usgs-earthquakes
+  - id: geo/usgs-earthquakes-hour
+    title: USGS earthquakes in the past hour
+    provider: geo/usgs-earthquakes-hour
     filter:
       data.magnitude: { gte: 4.0 }
 ```
 
-The fetcher resolves each `id` against the catalog cache to get the full stream definition.
+The fetcher resolves each `provider` against the catalog cache to get the full stream definition. `id` is the concrete active subscription identity that agents see. Providers/templates are used for discovery and subscription; only active subscription instances are injected into prompts.
+
+When subscribing to a provider with parameters, materialize it into a concrete instance. `agentfeeds subscribe` may derive the `id` and `title`, or the user can pass `--id` and `--title`. Providers without parameters can use the provider id/title as the concrete instance because there is only one natural instance.
 
 -----
 
@@ -343,8 +351,8 @@ A Python 3.11+ script. Single file preferred for v0.3. ~300 lines target.
 ```
 agentfeeds-fetch                        # default: refresh stale subscriptions
 agentfeeds-fetch --all                  # refresh every subscription regardless of staleness
-agentfeeds-fetch --stream <id>          # refresh one specific subscription
-agentfeeds-fetch --once <stream-id>     # one-shot fetch, used by `subscribe` recipe for eager first-fetch
+agentfeeds-fetch --stream <id>          # refresh one specific subscription id
+agentfeeds-fetch --once <id>            # one-shot fetch, used by `subscribe` recipe for eager first-fetch
 agentfeeds-fetch --regenerate-catalog   # regenerate ~/.agentfeeds/catalog.md without polling
 agentfeeds-fetch --update-catalog       # refresh ~/.agentfeeds/catalog-cache/ from public catalog
 ```
@@ -354,7 +362,7 @@ agentfeeds-fetch --update-catalog       # refresh ~/.agentfeeds/catalog-cache/ f
 1. Load `~/.agentfeeds/subscriptions.yaml`.
 1. Load `~/.agentfeeds/catalog-cache/INDEX.json` (or remote if cache is missing).
 1. For each subscription:
-- Resolve the stream definition by `id`.
+- Resolve the stream definition by `provider`.
 - Substitute parameters into the adapter config.
 - Skip if not stale (unless `--all`).
 - Run the adapter, get one or more envelopes.
@@ -389,7 +397,7 @@ Must teach the agent these behaviors:
 1. **At session start:** Read `~/.agentfeeds/catalog.md` if it exists. Treat the listed streams as available context.
 1. **When user asks about a topic covered by a subscribed stream:** Read the corresponding state file directly. Do not web-search if a non-stale state file covers the question.
 1. **When the user asks to subscribe to something:** Load `recipes/subscribe.md` and follow it.
-1. **When state appears stale and the user asks about it:** Run `agentfeeds-fetch --stream <id>` to refresh, then re-read.
+1. **When state appears stale and the user asks about it:** Run `agentfeeds-fetch --stream <subscription-id>` to refresh, then re-read.
 1. **When the user asks what’s available:** Load `recipes/discover.md` to search the catalog.
 
 The SKILL.md should be 80-150 lines. It is always in context, so it must be terse.
@@ -403,13 +411,13 @@ The SKILL.md should be 80-150 lines. It is always in context, so it must be ters
 1. If multiple matches, pick the highest-quality (`verified` > `community` > `experimental`) and prefer `auth: none`.
 1. Identify required parameters from the stream definition.
 1. Fill parameters from user input (geocode locations, look up tickers, etc.).
-1. Append to `~/.agentfeeds/subscriptions.yaml`.
-1. Run `agentfeeds-fetch --once <stream-id>` for eager first-fetch.
+1. Append the materialized subscription instance to `~/.agentfeeds/subscriptions.yaml`.
+1. Run `agentfeeds-fetch --once <subscription-id>` for eager first-fetch.
 1. Confirm to user with a quick read of the new state file.
 
 **`recipes/unsubscribe.md`** — remove from `subscriptions.yaml`, delete state file, run `--regenerate-catalog`.
 
-**`recipes/refresh.md`** — run `agentfeeds-fetch --stream <id>` or `agentfeeds-fetch --all`.
+**`recipes/refresh.md`** — run `agentfeeds-fetch --stream <subscription-id>` or `agentfeeds-fetch --all`.
 
 **`recipes/discover.md`** — search the catalog INDEX, present matches to the user, suggest which to subscribe to.
 
