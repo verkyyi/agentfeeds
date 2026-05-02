@@ -1,7 +1,7 @@
 [project]
 name = "agentfeeds"
 version = "0.0.0"
-description = "Local file-based ambient data feeds for AI agents"
+description = "Local-first ambient context streams for Hermes and personal agents"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

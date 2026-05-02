@@ -1,8 +1,23 @@
 # Agent Feeds
 
-Agent Feeds gives Hermes local ambient awareness through refreshable file snapshots.
+Agent Feeds gives Hermes local ambient awareness through refreshable file-based streams.
 
-Instead of asking you to run commands, Hermes uses Agent Feeds as an internal control plane: it discovers providers, subscribes to sources, refreshes state, reads local snapshots, and reports the result in conversation.
+It is a local-first context layer for personal agents. Instead of asking you to run commands, Hermes can use Agent Feeds as an internal control plane: discover providers, subscribe to sources, refresh state, read local snapshots/events, and report the result in conversation.
+
+Agent Feeds is not long-term memory. It is a small, inspectable substrate for fresh context that lives on your machine.
+
+## Why It Exists
+
+Personal agents need awareness of local and private state without stuffing every detail into the prompt or reaching for web search first.
+
+Agent Feeds keeps the heavy data on disk:
+
+- compact stream metadata is injected into Hermes
+- detailed JSON state is read only when relevant
+- background refresh keeps subscriptions warm
+- providers can be public feeds, local files, or operator-approved local commands
+
+This makes the agent context-aware while keeping the data path visible and debuggable.
 
 ## What You Can Ask
 
@@ -63,6 +78,32 @@ When relevant, read ~/.agentfeeds/catalog.md to locate the state file before web
 ```
 
 Full data stays on disk and is read only when relevant.
+
+## Demo Flow
+
+After installing the Hermes integration, ask Hermes:
+
+```text
+What Agent Feeds providers can I subscribe to?
+Subscribe me to Hacker News front page.
+Show me the current Hacker News front page from Agent Feeds.
+```
+
+Or inspect the same flow directly:
+
+```bash
+agentfeeds discover hacker
+agentfeeds subscribe dev/hackernews-frontpage
+agentfeeds status
+cat ~/.agentfeeds/catalog.md
+```
+
+For a private local source:
+
+```text
+Subscribe my project notes at ~/notes/project.md as Project notes.
+Refresh Project notes and summarize it.
+```
 
 ## Built-In Providers
 
@@ -137,3 +178,7 @@ agentfeeds providers validate
 ```
 
 These commands are mainly for debugging. The normal UX is to ask Hermes for the outcome you want.
+
+## Sharing
+
+See [docs/SHARING.md](docs/SHARING.md) for a short pitch, demo script, and release notes draft.
