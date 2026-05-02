@@ -16,7 +16,7 @@ adapter:
     language: jmespath
     expression: |
       hits[].{
-        id: objectID,
+        id: to_number(objectID),
         title: title,
         url: url,
         score: points,

@@ -1,3 +1,8 @@
+---
+name: agentfeeds
+description: Use local Agent Feeds subscriptions and state files for ambient context. Use when subscribing to feeds, refreshing feeds, discovering available streams, or answering from ~/.agentfeeds state files.
+---
+
 # Agent Feeds
 
 Use Agent Feeds to answer questions from local subscribed data streams before searching the web.

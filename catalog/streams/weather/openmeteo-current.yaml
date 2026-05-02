@@ -30,7 +30,7 @@ adapter:
         conditions_code: current.weather_code,
         observed_at: current.time
       }
-  id_from: "joined(['-', [current.time, to_string(latitude), to_string(longitude)]])"
+  id_from: "join('-', [current.time, to_string(latitude), to_string(longitude)])"
 recommended_poll_interval_seconds: 600
 auth: none
 tags: [weather, free, no-auth, global]

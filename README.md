@@ -36,6 +36,57 @@ Run tests:
 uv run pytest
 ```
 
+## Use In Codex
+
+Install the skill and fetcher from this checkout:
+
+```bash
+mkdir -p ~/.codex/skills ~/.local/bin
+ln -sfn "$PWD/bundle" ~/.codex/skills/agentfeeds
+cat > ~/.local/bin/agentfeeds-fetch <<EOF
+#!/usr/bin/env bash
+exec uv run --project "$PWD" "$PWD/bundle/bin/agentfeeds-fetch" "\$@"
+EOF
+chmod +x ~/.local/bin/agentfeeds-fetch
+```
+
+Start a new Codex session, then ask Codex to use the `agentfeeds` skill.
+
+For a direct smoke test, create a subscription and fetch once:
+
+```bash
+mkdir -p ~/.agentfeeds
+cat > ~/.agentfeeds/subscriptions.yaml <<'YAML'
+version: "0.3"
+defaults:
+  poll_interval_seconds: 600
+  history_limit: 50
+subscriptions:
+  - id: weather/openmeteo-current
+    parameters:
+      lat: 37.33
+      lon: -121.89
+YAML
+
+agentfeeds-fetch --once weather/openmeteo-current
+```
+
+Then inspect `~/.agentfeeds/catalog.md` and the state file it lists.
+
+Install background polling:
+
+```bash
+uv run bundle/bin/agentfeeds-install-poll
+```
+
+On macOS this installs a LaunchAgent at `~/Library/LaunchAgents/dev.agentfeeds.fetch.plist`. On Linux it installs a tagged crontab block. The interval is the shortest configured subscription interval, floored at 5 minutes.
+
+Uninstall background polling:
+
+```bash
+uv run bundle/bin/agentfeeds-uninstall-poll
+```
+
 ## Status
 
-This is a basic skeleton. The fetcher has filesystem and catalog-regeneration scaffolding, but full adapter execution is still to be implemented from `SPEC.md`.
+The fetcher supports the v0.3 adapter kinds, subscription polling, state writes, event merging, local catalog cache updates, `catalog.md` regeneration, and local background polling installation.

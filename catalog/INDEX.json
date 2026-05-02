@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-01T18:48:30Z",
+  "generated_at": "2026-05-01T19:00:47Z",
   "spec_version": "0.3",
   "stream_count": 8,
   "streams": [
@@ -44,7 +44,7 @@
     },
     {
       "auth": "none",
-      "description": "Current currency exchange rates for a base currency.",
+      "description": "Current currency exchange rates for a base currency via a no-auth public API.",
       "id": "finance/exchangerate",
       "mode": "snapshot",
       "parameters": [

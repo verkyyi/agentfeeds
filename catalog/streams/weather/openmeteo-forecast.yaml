@@ -27,7 +27,7 @@ adapter:
         generated_at: timezone,
         daily: daily
       }
-  id_from: "joined(['-', ['forecast', to_string(latitude), to_string(longitude)]])"
+  id_from: "join('-', ['forecast', to_string(latitude), to_string(longitude)])"
 recommended_poll_interval_seconds: 3600
 auth: none
 tags: [weather, forecast, free, no-auth, global]
