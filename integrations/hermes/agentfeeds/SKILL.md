@@ -49,6 +49,7 @@ Prefer the management CLI for subscription changes:
 ```bash
 agentfeeds subscribe <provider-id> key=value
 agentfeeds subscribe <provider-id> key=value --id <subscription-id> --title "<title>"
+agentfeeds subscribe local/file path=/absolute/or/~/file.md --title "<title>"
 agentfeeds unsubscribe <subscription-id>
 agentfeeds discover <query>
 agentfeeds status

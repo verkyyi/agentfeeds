@@ -39,6 +39,8 @@ def validate_stream(path: Path) -> None:
                 raise ValueError(f"{path}: adapter.{required} is required for {adapter_kind}")
     if adapter_kind in {"rss", "ical"} and "url" not in stream["adapter"]:
         raise ValueError(f"{path}: adapter.url is required for {adapter_kind}")
+    if adapter_kind == "local_file" and "path" not in stream["adapter"]:
+        raise ValueError(f"{path}: adapter.path is required for local_file")
 
 
 def main() -> int:

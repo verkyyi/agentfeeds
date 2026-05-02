@@ -73,6 +73,7 @@ agentfeeds discover weather
 agentfeeds list
 agentfeeds subscribe dev/hackernews-frontpage
 agentfeeds subscribe news/rss-generic url=https://openai.com/news/rss.xml --title "OpenAI News"
+agentfeeds subscribe local/file path=~/notes/project.md --title "Project notes"
 agentfeeds unsubscribe dev/hackernews-frontpage
 agentfeeds refresh news/openai-com
 agentfeeds refresh --all

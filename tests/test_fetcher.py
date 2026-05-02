@@ -110,3 +110,40 @@ def test_event_state_merges_dedups_and_truncates(tmp_path):
 
     assert [event["id"] for event in payload["data"]] == ["c", "b"]
     assert payload["data"][1]["data"]["value"] == 22
+
+
+def test_local_file_fetch_writes_snapshot_state(tmp_path):
+    source = tmp_path / "notes.md"
+    source.write_text("# Notes\n\nLocal context.\n", encoding="utf-8")
+    agentfeeds_root = tmp_path / "agentfeeds"
+    (agentfeeds_root / "subscriptions.yaml").parent.mkdir(parents=True)
+    (agentfeeds_root / "subscriptions.yaml").write_text(
+        textwrap.dedent(
+            f"""
+            version: "0.3"
+            defaults:
+              poll_interval_seconds: 600
+              history_limit: 50
+            subscriptions:
+              - id: local/notes-md
+                title: notes.md
+                provider: local/file
+                parameters:
+                  path: {source}
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    assert fetcher.main(["--root", str(agentfeeds_root), "--once", "local/notes-md"]) == 0
+
+    state_files = list((agentfeeds_root / "state" / "local.file").glob("**/*.json"))
+    assert len(state_files) == 1
+    assert state_files[0].name.startswith("file.notes.md.")
+    state = json.loads(state_files[0].read_text(encoding="utf-8"))
+    assert state["_meta"]["subscription_id"] == "local/notes-md"
+    assert state["_meta"]["provider_id"] == "local/file"
+    assert state["data"]["path"] == str(source)
+    assert state["data"]["name"] == "notes.md"
+    assert state["data"]["content"] == "# Notes\n\nLocal context.\n"
+    assert len(state["data"]["sha256"]) == 64

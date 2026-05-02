@@ -140,6 +140,11 @@ def _default_identity(provider: dict, params: dict[str, Any]) -> tuple[str, str]
     category = provider_id.split("/", 1)[0]
     title = provider["title"]
 
+    if provider_id == "local/file" and params.get("path"):
+        path = Path(str(params["path"])).expanduser()
+        name = path.name or "file"
+        return f"{category}/{_slugify(name)}", name
+
     if provider_id == "news/rss-generic" and params.get("url"):
         domain, rss_title = _rss_identity(str(params["url"]))
         if domain:

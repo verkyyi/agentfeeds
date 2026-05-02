@@ -116,3 +116,27 @@ def test_cli_keeps_no_parameter_provider_identity(tmp_path):
         "dev/hackernews-frontpage",
         "--no-fetch",
     ]) == 2
+
+
+def test_cli_materializes_local_file_subscription(tmp_path):
+    source = tmp_path / "Project Notes.md"
+    source.write_text("# Project Notes\n", encoding="utf-8")
+
+    assert cli.main([
+        "--root",
+        str(tmp_path / "agentfeeds"),
+        "subscribe",
+        "local/file",
+        f"path={source}",
+        "--no-fetch",
+    ]) == 0
+
+    config = yaml.safe_load((tmp_path / "agentfeeds" / "subscriptions.yaml").read_text(encoding="utf-8"))
+    assert config["subscriptions"] == [
+        {
+            "id": "local/project-notes-md",
+            "title": "Project Notes.md",
+            "provider": "local/file",
+            "parameters": {"path": str(source)},
+        }
+    ]

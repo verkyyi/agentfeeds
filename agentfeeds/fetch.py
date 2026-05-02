@@ -12,7 +12,7 @@ import shutil
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import feedparser
 import icalendar
@@ -52,6 +52,12 @@ def state_path_for_stream(stream_uri: str, root: Path = DEFAULT_ROOT) -> Path:
 
     path = parsed.path.lstrip("/").replace("/", ".")
     name = path or "index"
+    if parsed.netloc == "local.file":
+        params = parse_qs(parsed.query, keep_blank_values=True)
+        local_path = (params.get("path") or [""])[0]
+        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(local_path).name).strip("-") or "file"
+        digest = hashlib.sha256(parsed.query.encode("utf-8")).hexdigest()[:12]
+        return root / "state" / parsed.netloc / f"{name}.{stem}.{digest}.json"
     if parsed.query:
         name = f"{name}.{parsed.query.replace('&', ',')}"
     return root / "state" / parsed.netloc / f"{name}.json"
@@ -264,6 +270,30 @@ def fetch_ical(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
     return events
 
 
+def fetch_local_file(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
+    path = Path(adapter["path"]).expanduser()
+    if not path.is_absolute():
+        path = path.resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"{stream['id']}: local file not found: {path}")
+    if not path.is_file():
+        raise ValueError(f"{stream['id']}: local path is not a file: {path}")
+
+    raw = path.read_bytes()
+    stat = path.stat()
+    modified_at = datetime.fromtimestamp(stat.st_mtime, UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    data = {
+        "path": str(path),
+        "name": path.name,
+        "extension": path.suffix.lstrip("."),
+        "content": raw.decode("utf-8", errors="replace"),
+        "size_bytes": stat.st_size,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "modified_at": modified_at,
+    }
+    return [envelope(stream, stream_uri, data["sha256"], data, modified_at)]
+
+
 def run_adapter(stream: dict, parameters: dict) -> tuple[str, list[dict]]:
     validate_parameters(stream, parameters)
     stream_uri = source_uri_for(stream, parameters)
@@ -275,6 +305,8 @@ def run_adapter(stream: dict, parameters: dict) -> tuple[str, list[dict]]:
         return stream_uri, fetch_rss(stream, adapter, stream_uri)
     if kind == "ical":
         return stream_uri, fetch_ical(stream, adapter, stream_uri)
+    if kind == "local_file":
+        return stream_uri, fetch_local_file(stream, adapter, stream_uri)
     raise ValueError(f"unsupported adapter kind: {kind}")
 
 

@@ -14,4 +14,6 @@ Use this when the user asks to subscribe to an ambient data stream.
 7. If the user supplied a preferred name, pass `--id <subscription-id>` and/or `--title "<title>"`.
 8. Read the new state file and confirm the concrete subscription id with a concise summary.
 
+For local files, use `agentfeeds subscribe local/file path=<path>`. Local file subscriptions are read-only snapshots; do not edit the source file or hand-write files in `~/.agentfeeds/state/`.
+
 Do not write directly to `~/.agentfeeds/state/`.

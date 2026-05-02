@@ -442,7 +442,7 @@ If the user declines installation, polling simply doesn’t happen — the syste
 
 ## 11. Starter Catalog (build these first)
 
-Ship at least these 8 stream definitions in v0.3. Each must have working adapter config, real upstream APIs, no auth required:
+Ship at least these stream definitions in v0.3. Each must have working adapter config and require no auth:
 
 1. `weather/openmeteo-current` — Open-Meteo current conditions (params: lat, lon)
 1. `weather/openmeteo-forecast` — Open-Meteo 7-day forecast (params: lat, lon)
@@ -452,6 +452,7 @@ Ship at least these 8 stream definitions in v0.3. Each must have working adapter
 1. `space/iss-location` — Current ISS lat/lon (no params)
 1. `news/rss-generic` — Wraps any RSS URL (params: url)
 1. `finance/exchangerate` — exchangerate.host current rates (params: base)
+1. `local/file` — Read-only snapshot of a local text/Markdown/JSON file (params: path)
 
 Each must:
 
