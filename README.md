@@ -2,10 +2,12 @@
 
 Agent Feeds is a small local protocol for giving an AI agent ambient awareness of subscribed external data streams through files.
 
-This repository currently contains the v0.3 reference skeleton:
+This repository currently contains the v0.3 reference implementation:
 
+- `agentfeeds/` contains the Python fetcher and polling entrypoints.
 - `bundle/` contains the agent skill and command entrypoints.
 - `catalog/` contains starter stream definitions and schemas.
+- `integrations/hermes/agentfeeds/` contains the Hermes plugin, skill, and CLI wrappers.
 - `scripts/` contains catalog build and validation helpers.
 - `tests/` contains the initial test scaffold.
 - `SPEC.md` is the implementation spec.
@@ -43,11 +45,8 @@ Install the skill and fetcher from this checkout:
 ```bash
 mkdir -p ~/.codex/skills ~/.local/bin
 ln -sfn "$PWD/bundle" ~/.codex/skills/agentfeeds
-cat > ~/.local/bin/agentfeeds-fetch <<EOF
-#!/usr/bin/env bash
-exec uv run --project "$PWD" "$PWD/bundle/bin/agentfeeds-fetch" "\$@"
-EOF
-chmod +x ~/.local/bin/agentfeeds-fetch
+ln -sfn "$PWD/integrations/hermes/agentfeeds/bin/agentfeeds" ~/.local/bin/agentfeeds
+ln -sfn "$PWD/integrations/hermes/agentfeeds/bin/agentfeeds-fetch" ~/.local/bin/agentfeeds-fetch
 ```
 
 Start a new Codex session, then ask Codex to use the `agentfeeds` skill.
@@ -55,23 +54,22 @@ Start a new Codex session, then ask Codex to use the `agentfeeds` skill.
 For a direct smoke test, create a subscription and fetch once:
 
 ```bash
-mkdir -p ~/.agentfeeds
-cat > ~/.agentfeeds/subscriptions.yaml <<'YAML'
-version: "0.3"
-defaults:
-  poll_interval_seconds: 600
-  history_limit: 50
-subscriptions:
-  - id: weather/openmeteo-current
-    parameters:
-      lat: 37.33
-      lon: -121.89
-YAML
-
-agentfeeds-fetch --once weather/openmeteo-current
+agentfeeds subscribe weather/openmeteo-current lat=37.33 lon=-121.89
+agentfeeds status
 ```
 
 Then inspect `~/.agentfeeds/catalog.md` and the state file it lists.
+
+Manage subscriptions:
+
+```bash
+agentfeeds discover weather
+agentfeeds list
+agentfeeds subscribe dev/hackernews-frontpage
+agentfeeds unsubscribe dev/hackernews-frontpage
+agentfeeds refresh --all
+agentfeeds status --json
+```
 
 Install background polling:
 
@@ -89,13 +87,26 @@ uv run bundle/bin/agentfeeds-uninstall-poll
 
 ## Use In Hermes
 
-Install the Hermes plugin from this checkout:
+Install the Hermes plugin, skill, and CLI wrappers from this checkout:
 
 ```bash
-mkdir -p ~/.hermes/plugins
-ln -sfn "$PWD/integrations/hermes/agentfeeds" ~/.hermes/plugins/agentfeeds
-hermes plugins enable agentfeeds
+./integrations/hermes/agentfeeds/install.sh
 ```
+
+For a GitHub install:
+
+```bash
+git clone https://github.com/verkyyi/agentfeeds ~/.hermes/plugins-src/agentfeeds
+~/.hermes/plugins-src/agentfeeds/integrations/hermes/agentfeeds/install.sh
+```
+
+The installer:
+
+- symlinks the plugin to `~/.hermes/plugins/agentfeeds`
+- symlinks the skill to `~/.hermes/skills/agentfeeds`
+- symlinks CLI wrappers to `~/.local/bin`
+- enables the Hermes plugin
+- initializes `~/.agentfeeds/catalog.md`
 
 Restart Hermes afterward. The plugin injects only compact stream metadata on each turn, for example:
 

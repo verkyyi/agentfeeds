@@ -5,7 +5,7 @@ requires-python = ">=3.11"
 [[package]]
 name = "agentfeeds"
 version = "0.0.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "feedparser" },
     { name = "icalendar" },

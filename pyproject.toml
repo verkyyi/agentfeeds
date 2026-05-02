@@ -14,6 +14,19 @@ dependencies = [
   "requests>=2.32.3",
 ]
 
+[project.scripts]
+agentfeeds = "agentfeeds.cli:main"
+agentfeeds-fetch = "agentfeeds.fetch:main"
+agentfeeds-install-poll = "agentfeeds.polling_install:main"
+agentfeeds-uninstall-poll = "agentfeeds.polling_uninstall:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["agentfeeds*"]
+
 [dependency-groups]
 dev = [
   "pytest>=8.2.0",
