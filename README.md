@@ -72,6 +72,9 @@ Current built-ins:
 - `news/rss-generic`: RSS or Atom feed
 - `dev/hackernews-frontpage`: Hacker News front page
 - `dev/github-releases`: GitHub repository releases
+- `dev/github-issues`: GitHub repository issues
+- `dev/github-prs`: GitHub repository pull requests
+- `calendar/ics`: public iCalendar feed
 - `weather/openmeteo-current`: current weather by latitude/longitude
 - `weather/openmeteo-forecast`: 7-day forecast by latitude/longitude
 - `finance/exchangerate`: current exchange rates

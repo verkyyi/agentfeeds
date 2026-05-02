@@ -145,6 +145,22 @@ def _default_identity(provider: dict, params: dict[str, Any]) -> tuple[str, str]
         name = path.name or "file"
         return f"{category}/{_slugify(name)}", name
 
+    if params.get("owner") and params.get("repo"):
+        owner = _slugify(str(params["owner"]))
+        repo = _slugify(str(params["repo"]))
+        suffixes = {
+            "dev/github-issues": "issues",
+            "dev/github-prs": "prs",
+            "dev/github-releases": "releases",
+        }
+        suffix = suffixes.get(provider_id, provider_id.split("/", 1)[1])
+        return f"{category}/{owner}-{repo}-{suffix}", f"{params['owner']}/{params['repo']} {suffix}"
+
+    if provider_id == "calendar/ics" and params.get("url"):
+        parsed = urlparse(str(params["url"]))
+        if parsed.netloc:
+            return f"{category}/{_domain_slug(parsed.netloc)}", f"{_domain_title(parsed.netloc, 'calendar')}"
+
     if provider_id == "news/rss-generic" and params.get("url"):
         domain, rss_title = _rss_identity(str(params["url"]))
         if domain:
@@ -154,11 +170,6 @@ def _default_identity(provider: dict, params: dict[str, Any]) -> tuple[str, str]
         parsed = urlparse(str(params["url"]))
         if parsed.netloc:
             return f"{category}/{_domain_slug(parsed.netloc)}", _domain_title(parsed.netloc)
-
-    if params.get("owner") and params.get("repo"):
-        owner = _slugify(str(params["owner"]))
-        repo = _slugify(str(params["repo"]))
-        return f"{category}/{owner}-{repo}-releases", f"{params['owner']}/{params['repo']} releases"
 
     if params.get("base"):
         base = str(params["base"]).upper()

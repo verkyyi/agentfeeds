@@ -461,11 +461,14 @@ Ship at least these stream definitions in v0.3. Each must have working adapter c
 1. `weather/openmeteo-forecast` — Open-Meteo 7-day forecast (params: lat, lon)
 1. `geo/usgs-earthquakes-hour` — USGS earthquakes past hour (no params)
 1. `dev/github-releases` — GitHub repo releases (params: owner, repo)
+1. `dev/github-issues` — GitHub repo issues (params: owner, repo, state)
+1. `dev/github-prs` — GitHub repo pull requests (params: owner, repo, state)
 1. `dev/hackernews-frontpage` — Hacker News front page via Algolia or Firebase API (no params)
 1. `space/iss-location` — Current ISS lat/lon (no params)
 1. `news/rss-generic` — Wraps any RSS URL (params: url)
 1. `finance/exchangerate` — exchangerate.host current rates (params: base)
 1. `local/file` — Read-only snapshot of a local text/Markdown/JSON file (params: path)
+1. `calendar/ics` — Public iCalendar feed (params: url)
 
 Each must:
 

@@ -1,8 +1,74 @@
 {
-  "generated_at": "2026-05-02T03:57:53Z",
+  "generated_at": "2026-05-02T07:38:32Z",
   "spec_version": "0.3",
-  "stream_count": 9,
+  "stream_count": 12,
   "streams": [
+    {
+      "auth": "none",
+      "description": "Events from a public iCalendar URL.",
+      "id": "calendar/ics",
+      "mode": "event",
+      "parameters": [
+        "url"
+      ],
+      "path": "catalog/streams/calendar/ics.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "calendar",
+        "ics",
+        "ical",
+        "events",
+        "free",
+        "no-auth"
+      ],
+      "title": "iCalendar feed",
+      "type": "ical.event"
+    },
+    {
+      "auth": "none",
+      "description": "Recent issues for a public GitHub repository.",
+      "id": "dev/github-issues",
+      "mode": "event",
+      "parameters": [
+        "owner",
+        "repo",
+        "state"
+      ],
+      "path": "catalog/streams/dev/github-issues.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "dev",
+        "github",
+        "issues",
+        "free",
+        "no-auth"
+      ],
+      "title": "GitHub repository issues",
+      "type": "github.issue"
+    },
+    {
+      "auth": "none",
+      "description": "Recent pull requests for a public GitHub repository.",
+      "id": "dev/github-prs",
+      "mode": "event",
+      "parameters": [
+        "owner",
+        "repo",
+        "state"
+      ],
+      "path": "catalog/streams/dev/github-prs.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "dev",
+        "github",
+        "pull-request",
+        "prs",
+        "free",
+        "no-auth"
+      ],
+      "title": "GitHub repository pull requests",
+      "type": "github.pull-request"
+    },
     {
       "auth": "none",
       "description": "Latest release events for a public GitHub repository.",

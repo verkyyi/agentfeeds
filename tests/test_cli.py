@@ -153,3 +153,32 @@ def test_cli_provider_helpers(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "local/file: Local file" in out
     assert "source: builtin" in out
+
+
+def test_cli_materializes_github_issue_and_pr_subscriptions(tmp_path):
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "subscribe",
+        "dev/github-issues",
+        "owner=NousResearch",
+        "repo=hermes-agent",
+        "state=open",
+        "--no-fetch",
+    ]) == 0
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "subscribe",
+        "dev/github-prs",
+        "owner=NousResearch",
+        "repo=hermes-agent",
+        "state=open",
+        "--no-fetch",
+    ]) == 0
+
+    config = yaml.safe_load((tmp_path / "subscriptions.yaml").read_text(encoding="utf-8"))
+    assert config["subscriptions"][0]["id"] == "dev/nousresearch-hermes-agent-issues"
+    assert config["subscriptions"][0]["title"] == "NousResearch/hermes-agent issues"
+    assert config["subscriptions"][1]["id"] == "dev/nousresearch-hermes-agent-prs"
+    assert config["subscriptions"][1]["title"] == "NousResearch/hermes-agent prs"

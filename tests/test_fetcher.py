@@ -157,3 +157,122 @@ def test_local_file_fetch_writes_snapshot_state(tmp_path):
     assert state["data"]["name"] == "notes.md"
     assert state["data"]["content"] == "# Notes\n\nLocal context.\n"
     assert len(state["data"]["sha256"]) == 64
+
+
+def test_github_issue_and_pr_adapters_transform_payloads(tmp_path, monkeypatch):
+    issues = fetcher.load_stream_definition(tmp_path, "dev/github-issues")
+    prs = fetcher.load_stream_definition(tmp_path, "dev/github-prs")
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    def fake_request(_method, url, **_kwargs):
+        if "/issues" in url:
+            return FakeResponse(
+                [
+                    {
+                        "number": 1,
+                        "title": "Issue one",
+                        "state": "open",
+                        "html_url": "https://github.com/example/repo/issues/1",
+                        "user": {"login": "alice"},
+                        "labels": [{"name": "bug"}],
+                        "created_at": "2026-05-01T00:00:00Z",
+                        "updated_at": "2026-05-01T01:00:00Z",
+                        "closed_at": None,
+                        "body": "body",
+                    },
+                    {
+                        "number": 2,
+                        "title": "PR in issues API",
+                        "pull_request": {},
+                    },
+                ]
+            )
+        return FakeResponse(
+            [
+                {
+                    "number": 3,
+                    "title": "PR one",
+                    "state": "open",
+                    "html_url": "https://github.com/example/repo/pull/3",
+                    "user": {"login": "bob"},
+                    "draft": False,
+                    "head": {"ref": "feature"},
+                    "base": {"ref": "main"},
+                    "created_at": "2026-05-01T00:00:00Z",
+                    "updated_at": "2026-05-01T01:00:00Z",
+                    "closed_at": None,
+                    "merged_at": None,
+                    "body": "body",
+                }
+            ]
+        )
+
+    monkeypatch.setattr(fetcher.requests, "request", fake_request)
+
+    _issues_uri, issue_events = fetcher.run_adapter(issues, {"owner": "example", "repo": "repo", "state": "open"})
+    _prs_uri, pr_events = fetcher.run_adapter(prs, {"owner": "example", "repo": "repo", "state": "open"})
+
+    assert len(issue_events) == 1
+    assert issue_events[0]["id"] == "1"
+    assert issue_events[0]["data"]["labels"] == ["bug"]
+    assert len(pr_events) == 1
+    assert pr_events[0]["id"] == "3"
+    assert pr_events[0]["data"]["head_ref"] == "feature"
+
+
+def test_calendar_ics_fetch_writes_event_state(tmp_path, monkeypatch):
+    (tmp_path / "subscriptions.yaml").write_text(
+        textwrap.dedent(
+            """
+            version: "0.3"
+            defaults:
+              poll_interval_seconds: 600
+              history_limit: 50
+            subscriptions:
+              - id: calendar/example-com
+                title: Example calendar
+                provider: calendar/ics
+                parameters:
+                  url: https://example.com/calendar.ics
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    class FakeResponse:
+        content = textwrap.dedent(
+            """
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            BEGIN:VEVENT
+            UID:event-1
+            SUMMARY:Example event
+            DTSTART:20260502T120000Z
+            DTEND:20260502T130000Z
+            LOCATION:Online
+            END:VEVENT
+            END:VCALENDAR
+            """
+        ).strip().encode("utf-8")
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(fetcher.requests, "get", lambda *_args, **_kwargs: FakeResponse())
+
+    assert fetcher.main(["--root", str(tmp_path), "--once", "calendar/example-com"]) == 0
+
+    state_path = tmp_path / "state" / "calendar.local" / "ics.url=https:/example.com/calendar.ics.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["_meta"]["subscription_id"] == "calendar/example-com"
+    assert state["_meta"]["provider_id"] == "calendar/ics"
+    assert state["data"][0]["data"]["summary"] == "Example event"
