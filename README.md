@@ -1,14 +1,14 @@
 # Agent Feeds
 
-Agent Feeds gives Hermes local ambient awareness through refreshable file-based streams.
+Agent Feeds helps Hermes answer faster and with better context by keeping fresh, inspectable snapshots of the sources you care about on your machine. Instead of fetching everything on demand, asking you to paste context, or spending tokens rediscovering the same state, Hermes can use ambient awareness from subscribed feeds, local files, and approved data sources.
 
-It is a local-first context layer for personal agents. Instead of asking you to run commands, Hermes can use Agent Feeds as an internal control plane: discover providers, subscribe to sources, refresh state, read local snapshots/events, and report the result in conversation.
+For example, without Agent Feeds, asking "What changed in my project notes?" may require Hermes to ask where the notes live, read them from scratch, or wait while you provide context. With Agent Feeds, Hermes can see the subscribed `Project notes` stream, read the latest local snapshot only when relevant, and summarize the change directly.
 
-Agent Feeds is not long-term memory. It is a small, inspectable substrate for fresh context that lives on your machine.
+Agent Feeds is not long-term memory. It is a local-first context layer for fresh, inspectable ambient context that lives on your machine.
 
 ## Why It Exists
 
-Personal agents need awareness of local and private state without stuffing every detail into the prompt or reaching for web search first.
+Personal agents need awareness of local and private state without stuffing every detail into the prompt, rerunning expensive discovery, or reaching for web search first.
 
 Agent Feeds keeps the heavy data on disk:
 
@@ -18,6 +18,8 @@ Agent Feeds keeps the heavy data on disk:
 - providers can be public feeds, local files, or operator-approved local commands
 
 This makes the agent context-aware while keeping the data path visible and debuggable.
+
+Agent Feeds also gives Hermes a small local control surface for discovering providers, subscribing to sources, refreshing state, reading local snapshots/events, and reporting the result in conversation.
 
 ## What You Can Ask
 
