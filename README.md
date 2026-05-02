@@ -87,6 +87,28 @@ Uninstall background polling:
 uv run bundle/bin/agentfeeds-uninstall-poll
 ```
 
+## Use In Hermes
+
+Install the Hermes plugin from this checkout:
+
+```bash
+mkdir -p ~/.hermes/plugins
+ln -sfn "$PWD/integrations/hermes/agentfeeds" ~/.hermes/plugins/agentfeeds
+hermes plugins enable agentfeeds
+```
+
+Restart Hermes afterward. The plugin injects only compact stream metadata on each turn, for example:
+
+```text
+<agentfeeds>
+Available local streams:
+- weather/openmeteo-current: Current weather conditions (Open-Meteo)
+- dev/hackernews-frontpage: Hacker News front page
+
+When relevant, read ~/.agentfeeds/catalog.md to locate the state file before web search.
+</agentfeeds>
+```
+
 ## Status
 
 The fetcher supports the v0.3 adapter kinds, subscription polling, state writes, event merging, local catalog cache updates, `catalog.md` regeneration, and local background polling installation.
