@@ -56,8 +56,10 @@ agentfeeds subscribe <provider-id> key=value --id <subscription-id> --title "<ti
 agentfeeds subscribe local/file path=/absolute/or/~/file.md --title "<title>"
 agentfeeds unsubscribe <subscription-id>
 agentfeeds discover <query>
+agentfeeds providers adapters
 agentfeeds providers list
 agentfeeds providers path
+agentfeeds providers scaffold <adapter-kind> <provider-id>
 agentfeeds providers validate
 agentfeeds status
 ```

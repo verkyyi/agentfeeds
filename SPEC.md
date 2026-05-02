@@ -434,6 +434,14 @@ The SKILL.md should be 80-150 lines. It is always in context, so it must be ters
 
 **`recipes/provider-testing.md`** — run `agentfeeds providers validate`, confirm discovery, and smoke-test with a temporary Agent Feeds root before subscribing in the live root.
 
+Provider authoring helpers:
+
+```
+agentfeeds providers adapters
+agentfeeds providers scaffold <adapter-kind> <provider-id>
+agentfeeds providers validate
+```
+
 -----
 
 ## 10. Polling Installer (`bundle/bin/agentfeeds-install-poll`)

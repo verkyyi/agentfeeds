@@ -125,8 +125,10 @@ You can inspect Agent Feeds directly when needed:
 agentfeeds list
 agentfeeds status
 agentfeeds discover local
+agentfeeds providers adapters
 agentfeeds providers list
 agentfeeds providers path
+agentfeeds providers scaffold json_http personal/tasks
 agentfeeds providers validate
 ```
 

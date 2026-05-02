@@ -3,7 +3,7 @@
 Use this when the user wants Agent Feeds to support a source that no current provider covers.
 
 1. Run `agentfeeds discover <query>` and confirm no existing provider fits.
-2. Classify the source:
+2. Run `agentfeeds providers adapters` and classify the source:
    - `local_file` for one local text, Markdown, or JSON file.
    - `json_http` for one HTTP JSON snapshot.
    - `paginated_json_http` for HTTP JSON event lists.
@@ -14,15 +14,16 @@ Use this when the user wants Agent Feeds to support a source that no current pro
    - `snapshot` for one current state.
    - `event` for a list of recent items.
 5. Define required parameters. Do not bake user-specific secrets into provider YAML.
-6. Run `agentfeeds providers path` to locate the local provider root.
-7. Create `~/.agentfeeds/providers/streams/<category>/<name>.yaml`.
-8. Reuse an existing built-in schema when possible. If needed, create `~/.agentfeeds/providers/schemas/event-types/<type>.v1.json`.
-9. Keep provider descriptions short and operator-facing. Include tags that help `agentfeeds discover`.
-10. Run `recipes/provider-testing.md`.
+6. Run `agentfeeds providers scaffold <adapter-kind> <provider-id>`.
+7. Edit the generated YAML under `~/.agentfeeds/providers/streams/<category>/<name>.yaml`.
+8. Edit the generated schema under `~/.agentfeeds/providers/schemas/event-types/<type>.v1.json` when the scaffold created one.
+9. Reuse built-in schemas for `rss` and `ical` unless the user needs custom fields.
+10. Keep provider descriptions short and operator-facing. Include tags that help `agentfeeds discover`.
+11. Run `recipes/provider-testing.md`.
 
 For local/private sources, prefer read-only snapshots. Provider adapters should read from the source and write Agent Feeds state; they should not mutate the original source.
 
-Minimal stream template:
+Minimal stream template, equivalent to `agentfeeds providers scaffold local_file local/example`:
 
 ```yaml
 id: local/example

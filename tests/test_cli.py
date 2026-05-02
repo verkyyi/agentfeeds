@@ -154,6 +154,52 @@ def test_cli_provider_helpers(tmp_path, capsys):
     assert "local/file: Local file" in out
     assert "source: builtin" in out
 
+    assert cli.main(["--root", str(tmp_path), "providers", "adapters"]) == 0
+    out = capsys.readouterr().out
+    assert "local_file:" in out
+    assert "json_http:" in out
+
+
+def test_cli_scaffolds_local_provider(tmp_path, capsys):
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "providers",
+        "scaffold",
+        "json_http",
+        "personal/tasks",
+    ]) == 0
+
+    stream_path = tmp_path / "providers" / "streams" / "personal" / "tasks.yaml"
+    schema_path = tmp_path / "providers" / "schemas" / "event-types" / "personal.tasks.v1.json"
+    stream = yaml.safe_load(stream_path.read_text(encoding="utf-8"))
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    assert stream["id"] == "personal/tasks"
+    assert stream["adapter"]["kind"] == "json_http"
+    assert stream["parameters"][0]["name"] == "url"
+    assert schema["$id"] == "https://agentfeeds.dev/schemas/personal.tasks.v1.json"
+    assert "wrote:" in capsys.readouterr().out
+    assert cli.main(["--root", str(tmp_path), "providers", "validate"]) == 0
+
+
+def test_cli_scaffold_reuses_builtin_schema_for_rss(tmp_path):
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "providers",
+        "scaffold",
+        "rss",
+        "news/example",
+    ]) == 0
+
+    stream_path = tmp_path / "providers" / "streams" / "news" / "example.yaml"
+    stream = yaml.safe_load(stream_path.read_text(encoding="utf-8"))
+
+    assert stream["type"] == "rss.item"
+    assert stream["schema_url"] == "https://agentfeeds.dev/schemas/rss-item.v1.json"
+    assert not (tmp_path / "providers" / "schemas" / "event-types" / "news.example.v1.json").exists()
+
 
 def test_cli_materializes_github_issue_and_pr_subscriptions(tmp_path):
     assert cli.main([

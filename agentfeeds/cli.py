@@ -19,6 +19,13 @@ from agentfeeds import fetch
 
 
 INSTANCE_ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9][a-z0-9-]*$")
+ADAPTER_KINDS = {
+    "local_file": "Read one local text, Markdown, or JSON file as a snapshot.",
+    "json_http": "Fetch one HTTP JSON document and transform it into a snapshot.",
+    "paginated_json_http": "Fetch an HTTP JSON array and transform it into event items.",
+    "rss": "Fetch an RSS or Atom feed as event items.",
+    "ical": "Fetch an iCalendar URL as event items.",
+}
 
 
 def parse_value(value: str) -> Any:
@@ -85,6 +92,103 @@ def _slugify(value: str) -> str:
 def _hash_suffix(value: object) -> str:
     encoded = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()[:6]
+
+
+def _provider_id_parts(provider_id: str) -> tuple[str, str]:
+    if not INSTANCE_ID_PATTERN.match(provider_id):
+        raise ValueError("provider id must look like category/name using lowercase letters, numbers, and hyphens")
+    return tuple(provider_id.split("/", 1))  # type: ignore[return-value]
+
+
+def _title_from_slug(slug: str) -> str:
+    return slug.replace("-", " ").title()
+
+
+def _schema_payload(provider_id: str, mode: str) -> dict:
+    category, name = _provider_id_parts(provider_id)
+    type_name = f"{category}.{name.replace('-', '.')}"
+    data = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": f"https://agentfeeds.dev/schemas/{type_name}.v1.json",
+        "title": _title_from_slug(name),
+        "type": "object",
+        "required": ["title"],
+        "properties": {
+            "title": {"type": "string"},
+            "url": {"type": ["string", "null"]},
+            "content": {"type": ["string", "null"]},
+            "updated_at": {"type": ["string", "null"]},
+        },
+    }
+    if mode == "event":
+        data["required"] = ["title"]
+    return data
+
+
+def scaffold_stream(provider_id: str, adapter_kind: str) -> tuple[dict, dict, Path, Path]:
+    if adapter_kind not in ADAPTER_KINDS:
+        raise ValueError(f"unsupported adapter kind: {adapter_kind}")
+    category, name = _provider_id_parts(provider_id)
+    title = _title_from_slug(name)
+    type_name = f"{category}.{name.replace('-', '.')}"
+    mode = "event" if adapter_kind in {"paginated_json_http", "rss", "ical"} else "snapshot"
+    schema_name = f"{type_name}.v1.json"
+    stream_path = Path(category) / f"{name}.yaml"
+    schema_path = Path(schema_name)
+
+    parameters = []
+    source_uri_template = f"feed://{type_name}/source"
+    adapter: dict[str, object] = {"kind": adapter_kind}
+    transform = {
+        "language": "jmespath",
+        "expression": "{title: title, url: url, content: body, updated_at: updated_at}",
+    }
+
+    if adapter_kind == "local_file":
+        parameters = [{"name": "path", "type": "string", "description": "Local file path", "required": True}]
+        source_uri_template = f"feed://{type_name}/file?path={{path}}"
+        adapter = {"kind": "local_file", "path": "{path}"}
+    elif adapter_kind == "json_http":
+        parameters = [{"name": "url", "type": "string", "description": "JSON API URL", "required": True}]
+        source_uri_template = f"feed://{type_name}/json?url={{url}}"
+        adapter = {"kind": "json_http", "url": "{url}", "method": "GET", "headers": {}, "transform": transform}
+    elif adapter_kind == "paginated_json_http":
+        parameters = [{"name": "url", "type": "string", "description": "JSON API URL", "required": True}]
+        source_uri_template = f"feed://{type_name}/items?url={{url}}"
+        adapter = {"kind": "paginated_json_http", "url": "{url}", "method": "GET", "headers": {}, "transform": transform, "id_from": "url"}
+    elif adapter_kind == "rss":
+        parameters = [{"name": "url", "type": "string", "description": "RSS or Atom URL", "required": True}]
+        source_uri_template = f"feed://{type_name}/rss?url={{url}}"
+        adapter = {"kind": "rss", "url": "{url}"}
+        type_name = "rss.item"
+        schema_name = "rss-item.v1.json"
+        schema_path = Path(schema_name)
+    elif adapter_kind == "ical":
+        parameters = [{"name": "url", "type": "string", "description": "iCalendar URL", "required": True}]
+        source_uri_template = f"feed://{type_name}/ics?url={{url}}"
+        adapter = {"kind": "ical", "url": "{url}"}
+        type_name = "ical.event"
+        schema_name = "ical-event.v1.json"
+        schema_path = Path(schema_name)
+
+    stream = {
+        "id": provider_id,
+        "title": title,
+        "description": f"Draft provider for {title}.",
+        "type": type_name,
+        "mode": mode,
+        "schema_url": f"https://agentfeeds.dev/schemas/{schema_name}",
+        "schema_version": "1.0.0",
+        "parameters": parameters,
+        "source_uri_template": source_uri_template,
+        "adapter": adapter,
+        "recommended_poll_interval_seconds": 300,
+        "auth": "none",
+        "tags": [category, adapter_kind.replace("_", "-")],
+        "quality_tier": "experimental",
+        "contributed_by": "local",
+    }
+    return stream, _schema_payload(provider_id, mode), stream_path, schema_path
 
 
 def _domain_slug(domain: str) -> str:
@@ -428,6 +532,42 @@ def cmd_providers_validate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_providers_adapters(_args: argparse.Namespace) -> int:
+    for kind, description in ADAPTER_KINDS.items():
+        print(f"{kind}: {description}")
+    return 0
+
+
+def cmd_providers_scaffold(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    try:
+        stream, schema, stream_rel_path, schema_rel_path = scaffold_stream(args.provider_id, args.adapter_kind)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    stream_path = fetch.provider_streams_root(args.root) / stream_rel_path
+    schema_path = fetch.provider_schemas_root(args.root) / schema_rel_path
+    if stream_path.exists() and not args.force:
+        print(f"provider already exists: {stream_path}", file=sys.stderr)
+        return 1
+
+    stream_path.parent.mkdir(parents=True, exist_ok=True)
+    stream_path.write_text(yaml.safe_dump(stream, sort_keys=False), encoding="utf-8")
+
+    if args.adapter_kind not in {"rss", "ical"} and (args.force or not schema_path.exists()):
+        schema_path.parent.mkdir(parents=True, exist_ok=True)
+        schema_path.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    print(f"wrote: {stream_path}")
+    if args.adapter_kind in {"rss", "ical"}:
+        print(f"schema: built-in {stream['schema_url']}")
+    else:
+        print(f"wrote: {schema_path}")
+    print("Next: edit the draft, then run `agentfeeds providers validate`.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage Agent Feeds subscriptions")
     parser.add_argument("--root", type=Path, default=fetch.DEFAULT_ROOT, help="agentfeeds root directory")
@@ -466,8 +606,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     providers = subparsers.add_parser("providers", help="manage provider catalog")
     provider_subparsers = providers.add_subparsers(dest="provider_command", required=True)
+    provider_subparsers.add_parser("adapters", help="list scaffoldable adapter kinds").set_defaults(func=cmd_providers_adapters)
     provider_subparsers.add_parser("list", help="list built-in and local providers").set_defaults(func=cmd_providers_list)
     provider_subparsers.add_parser("path", help="print the local provider directory").set_defaults(func=cmd_providers_path)
+    scaffold = provider_subparsers.add_parser("scaffold", help="create a draft local provider")
+    scaffold.add_argument("adapter_kind", choices=sorted(ADAPTER_KINDS))
+    scaffold.add_argument("provider_id")
+    scaffold.add_argument("--force", action="store_true", help="overwrite an existing draft")
+    scaffold.set_defaults(func=cmd_providers_scaffold)
     provider_subparsers.add_parser("validate", help="validate local providers").set_defaults(func=cmd_providers_validate)
 
     return parser
