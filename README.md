@@ -1,10 +1,38 @@
 # Agent Feeds
 
-Agent Feeds helps Hermes answer faster and with better context by keeping fresh, inspectable snapshots of the sources you care about on your machine. Instead of fetching everything on demand, asking you to paste context, or spending tokens rediscovering the same state, Hermes can use ambient awareness from subscribed feeds, local files, and approved data sources.
+Agent Feeds is a local-first ambient context layer for Hermes and personal agents.
 
-For example, without Agent Feeds, asking "What changed in my project notes?" may require Hermes to ask where the notes live, read them from scratch, or wait while you provide context. With Agent Feeds, Hermes can see the subscribed `Project notes` stream, read the latest local snapshot only when relevant, and summarize the change directly.
+Personal agents often start sessions blind: users repeat project context, paste large prompt blobs, or make the agent re-search/re-run commands for state that could already be cached locally. Agent Feeds fixes that with refreshable subscriptions, compact prompt metadata, and inspectable JSON state on disk.
 
-Agent Feeds is not long-term memory. It is a local-first context layer for fresh, inspectable ambient context that lives on your machine.
+**Agents need feeds, not just memory.** Memory is for durable facts. Feeds are for fresh, timestamped state: repo issues, project notes, RSS/news, calendars, weather, local dashboards, or approved local command output.
+
+## Quick Demo
+
+Install the Hermes integration:
+
+```bash
+git clone https://github.com/verkyyi/agentfeeds ~/.hermes/plugins-src/agentfeeds
+~/.hermes/plugins-src/agentfeeds/integrations/hermes/agentfeeds/install.sh
+```
+
+Restart Hermes, then ask:
+
+```text
+What Agent Feeds providers can I subscribe to?
+Subscribe me to Hacker News front page.
+Show me the current Hacker News front page from Agent Feeds.
+Subscribe my project notes at ~/notes/project.md as Project notes.
+Refresh Project notes and summarize it.
+```
+
+What happens under the hood:
+
+- active subscriptions live in `~/.agentfeeds/subscriptions.yaml`
+- Hermes sees only compact stream metadata from `~/.agentfeeds/catalog.md`
+- detailed snapshots/events live in `~/.agentfeeds/state/*.json`
+- when relevant, Hermes reads the right state file before using web search
+
+Agent Feeds is not long-term memory. It is a refreshable, local-first context layer for fresh, inspectable ambient context that lives on your machine.
 
 ## Why It Exists
 
@@ -180,6 +208,28 @@ agentfeeds providers validate
 ```
 
 These commands are mainly for debugging. The normal UX is to ask Hermes for the outcome you want.
+
+## FAQ
+
+### Why not just use agent memory?
+
+Memory is for durable facts that should survive across sessions. Agent Feeds is for fresh state that changes over time: feed items, repo issues, calendars, weather, dashboards, project notes, or command snapshots. The state is timestamped and refreshable instead of being mixed into chat history.
+
+### Why not put everything in the prompt?
+
+Large prompts are expensive, noisy, and stale. Agent Feeds injects only a compact catalog of available streams, then lets Hermes read detailed state only when the user asks something relevant.
+
+### Why not a vector database?
+
+Agent Feeds is not semantic recall. It is structured, inspectable current state. Subscriptions, provider definitions, schemas, and JSON state are plain files under `~/.agentfeeds/` so operators can debug what the agent sees.
+
+### Why not MCP?
+
+MCP is a great tool interface. Agent Feeds is a local state substrate: background refresh, subscriptions, a compact catalog, and state files that agents can inspect across sessions. They can complement each other.
+
+### Is this an RSS reader?
+
+RSS is one provider type. Agent Feeds also supports local files, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and operator-approved local commands. The product is the subscription/state layer for agents, not a human feed UI.
 
 ## Sharing
 

@@ -63,7 +63,7 @@ agentfeeds providers test personal/status --json
 Title:
 
 ```text
-Agent Feeds v0.1.0: Local ambient context for Hermes
+Agent Feeds v0.1.0: Local ambient context for personal agents
 ```
 
 Body:
@@ -71,7 +71,7 @@ Body:
 ```text
 Agent Feeds is a local-first ambient context layer for personal agents.
 
-This first release focuses on Hermes:
+This first release focuses on personal agents, with a Hermes integration included:
 - Hermes plugin and skill bundle
 - local subscriptions under ~/.agentfeeds
 - compact catalog injection
@@ -82,6 +82,8 @@ This first release focuses on Hermes:
 - provider dry-run testing with agentfeeds providers test
 
 The core design is intentionally file-based: detailed state stays in JSON files on disk, and the agent reads it only when relevant.
+
+Agent Feeds is not long-term memory, a vector database, a hosted sync service, or an RSS reader UI. It is a small inspectable substrate for fresh agent context.
 ```
 
 ## Suggested Audiences
