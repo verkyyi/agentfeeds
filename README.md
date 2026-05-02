@@ -113,6 +113,7 @@ Hermes should:
 - draft provider YAML under `~/.agentfeeds/providers/streams/`
 - draft or reuse a schema under `~/.agentfeeds/providers/schemas/event-types/`
 - validate the provider with `agentfeeds providers validate`
+- test it once with `agentfeeds providers test <provider-id> key=value`
 - smoke-test it with a temporary Agent Feeds root before touching your live subscriptions
 
 Command-based providers are supported through `local_command`, but Hermes should only create them for commands you explicitly approve. They run without a shell, with timeout and output limits. They can capture one command snapshot or parse JSON output into event items.
@@ -131,6 +132,7 @@ agentfeeds providers adapters
 agentfeeds providers list
 agentfeeds providers path
 agentfeeds providers scaffold json_http personal/tasks
+agentfeeds providers test personal/tasks url=https://example.com/tasks.json
 agentfeeds providers validate
 ```
 

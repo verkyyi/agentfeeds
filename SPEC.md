@@ -434,13 +434,14 @@ The SKILL.md should be 80-150 lines. It is always in context, so it must be ters
 
 **`recipes/provider-authoring.md`** — draft user-local provider YAML under `~/.agentfeeds/providers/streams/` and schemas under `~/.agentfeeds/providers/schemas/event-types/`.
 
-**`recipes/provider-testing.md`** — run `agentfeeds providers validate`, confirm discovery, and smoke-test with a temporary Agent Feeds root before subscribing in the live root.
+**`recipes/provider-testing.md`** — run `agentfeeds providers validate`, `agentfeeds providers test`, confirm discovery, and smoke-test subscription materialization with a temporary Agent Feeds root before subscribing in the live root.
 
 Provider authoring helpers:
 
 ```
 agentfeeds providers adapters
 agentfeeds providers scaffold <adapter-kind> <provider-id>
+agentfeeds providers test <provider-id> key=value
 agentfeeds providers validate
 ```
 

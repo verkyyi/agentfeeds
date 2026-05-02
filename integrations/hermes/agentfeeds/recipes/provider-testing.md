@@ -8,13 +8,20 @@ Use this after creating or editing an Agent Feeds provider.
 agentfeeds providers validate
 ```
 
-2. Confirm discovery sees the provider:
+2. Run the provider once without writing state or touching subscriptions:
+
+```bash
+agentfeeds providers test <provider-id> key=value
+agentfeeds providers test <provider-id> key=value --json
+```
+
+3. Confirm discovery sees the provider:
 
 ```bash
 agentfeeds discover <query>
 ```
 
-3. Smoke-test with a temporary Agent Feeds root instead of the user's live subscriptions. Copy the drafted local provider tree into the temp root first:
+4. If you need to test subscription materialization, use a temporary Agent Feeds root instead of the user's live subscriptions. Copy the drafted local provider tree into the temp root first:
 
 ```bash
 tmp="$(mktemp -d)"
@@ -27,7 +34,7 @@ agentfeeds --root "$tmp" status
 sed -n '1,80p' "$tmp/catalog.md"
 ```
 
-4. Inspect the generated state JSON under `$tmp/state/` and verify:
+5. Inspect the generated state JSON under `$tmp/state/` and verify:
    - `_meta.subscription_id` is the concrete instance id.
    - `_meta.provider_id` is the provider id.
    - `data` matches the schema and contains only intended fields.

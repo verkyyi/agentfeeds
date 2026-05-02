@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 
 import yaml
 
@@ -224,6 +225,98 @@ def test_cli_scaffold_reuses_builtin_schema_for_local_command(tmp_path):
     assert stream["adapter"]["transform"]["language"] == "jmespath"
     assert not (tmp_path / "providers" / "schemas" / "event-types" / "personal.command.v1.json").exists()
     assert cli.main(["--root", str(tmp_path), "providers", "validate"]) == 0
+
+
+def test_cli_provider_test_runs_provider_without_writing_state(tmp_path, capsys):
+    source = tmp_path / "Project Notes.md"
+    source.write_text("# Project Notes\n", encoding="utf-8")
+
+    assert cli.main([
+        "--root",
+        str(tmp_path / "agentfeeds"),
+        "providers",
+        "test",
+        "local/file",
+        f"path={source}",
+        "--json",
+    ]) == 0
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["provider"] == "local/file"
+    assert result["mode"] == "snapshot"
+    assert result["event_count"] == 1
+    assert result["sample"]["content"] == "# Project Notes\n"
+    assert result["state_path"].startswith("state/local.file/file.Project-Notes.md.")
+    assert not (tmp_path / "agentfeeds" / "state" / "local.file").exists()
+
+
+def test_cli_provider_test_supports_event_command_without_items_from(tmp_path, capsys):
+    streams_root = tmp_path / "providers" / "streams" / "personal"
+    schemas_root = tmp_path / "providers" / "schemas" / "event-types"
+    streams_root.mkdir(parents=True)
+    schemas_root.mkdir(parents=True)
+    (schemas_root / "personal.item.v1.json").write_text(
+        json.dumps(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$id": "https://agentfeeds.dev/schemas/personal.item.v1.json",
+                "title": "Personal item",
+                "type": "object",
+                "properties": {"title": {"type": "string"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (streams_root / "items.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "personal/items",
+                "title": "Personal items",
+                "description": "Recent personal items",
+                "type": "personal.item",
+                "mode": "event",
+                "schema_url": "https://agentfeeds.dev/schemas/personal.item.v1.json",
+                "schema_version": "1.0.0",
+                "parameters": [],
+                "source_uri_template": "feed://personal.items/recent",
+                "adapter": {
+                    "kind": "local_command",
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        "import json; print(json.dumps([{'id': 'one', 'title': 'One'}]))",
+                    ],
+                    "parse": "json",
+                    "id_from": "id",
+                    "transform": {
+                        "language": "jmespath",
+                        "expression": "{title: title}",
+                    },
+                },
+                "recommended_poll_interval_seconds": 300,
+                "auth": "none",
+                "tags": ["personal"],
+                "quality_tier": "experimental",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "providers",
+        "test",
+        "personal/items",
+        "--json",
+    ]) == 0
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["provider"] == "personal/items"
+    assert result["mode"] == "event"
+    assert result["event_count"] == 1
+    assert result["sample"] == {"title": "One"}
 
 
 def test_cli_materializes_github_issue_and_pr_subscriptions(tmp_path):

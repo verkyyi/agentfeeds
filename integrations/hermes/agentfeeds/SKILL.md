@@ -60,6 +60,7 @@ agentfeeds providers adapters
 agentfeeds providers list
 agentfeeds providers path
 agentfeeds providers scaffold <adapter-kind> <provider-id>
+agentfeeds providers test <provider-id> key=value
 agentfeeds providers validate
 agentfeeds status
 ```
@@ -88,6 +89,7 @@ If there is no suitable provider, help draft one:
 
 ```bash
 agentfeeds providers path
+agentfeeds providers test <provider-id> key=value
 agentfeeds providers validate
 ```
 

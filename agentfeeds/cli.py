@@ -588,6 +588,48 @@ def cmd_providers_scaffold(args: argparse.Namespace) -> int:
     return 0
 
 
+def _event_sample(events: list[dict]) -> object:
+    if not events:
+        return None
+    return events[0].get("data")
+
+
+def cmd_providers_test(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    try:
+        stream = fetch.load_stream_definition(args.root, args.provider_id)
+        params = parse_params(args.parameters)
+        fetch.validate_parameters(stream, params)
+        stream_uri, events = fetch.run_adapter(stream, params)
+        state_path = fetch.state_path_for_stream(stream_uri, args.root)
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    result = {
+        "provider": stream["id"],
+        "title": stream["title"],
+        "mode": stream["mode"],
+        "stream": stream_uri,
+        "state_path": str(state_path.relative_to(args.root)),
+        "event_count": len(events),
+        "sample": _event_sample(events),
+    }
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print(f"Provider: {result['provider']}")
+    print(f"Title: {result['title']}")
+    print(f"Mode: {result['mode']}")
+    print(f"Stream: {result['stream']}")
+    print(f"State path: {result['state_path']}")
+    print(f"Events: {result['event_count']}")
+    print("Sample:")
+    print(json.dumps(result["sample"], indent=2, sort_keys=True))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage Agent Feeds subscriptions")
     parser.add_argument("--root", type=Path, default=fetch.DEFAULT_ROOT, help="agentfeeds root directory")
@@ -634,6 +676,11 @@ def build_parser() -> argparse.ArgumentParser:
     scaffold.add_argument("provider_id")
     scaffold.add_argument("--force", action="store_true", help="overwrite an existing draft")
     scaffold.set_defaults(func=cmd_providers_scaffold)
+    provider_test = provider_subparsers.add_parser("test", help="run a provider once without writing state")
+    provider_test.add_argument("provider_id")
+    provider_test.add_argument("parameters", nargs="*", help="provider parameters as key=value")
+    provider_test.add_argument("--json", action="store_true", help="print machine-readable output")
+    provider_test.set_defaults(func=cmd_providers_test)
     provider_subparsers.add_parser("validate", help="validate local providers").set_defaults(func=cmd_providers_validate)
 
     return parser
