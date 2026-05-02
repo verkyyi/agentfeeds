@@ -30,6 +30,16 @@ def test_atomic_write_json_writes_complete_file(tmp_path):
     assert not target.with_suffix(".json.tmp").exists()
 
 
+def test_fetch_lock_skips_overlapping_run(tmp_path, capsys):
+    fetcher.ensure_root(tmp_path)
+    with fetcher.fetch_lock(tmp_path) as acquired:
+        assert acquired is True
+        assert fetcher.main(["--root", str(tmp_path), "--all"]) == 0
+
+    err = capsys.readouterr().err
+    assert "already running" in err
+
+
 def test_once_fetch_writes_snapshot_state_and_catalog(tmp_path, monkeypatch):
     (tmp_path / "subscriptions.yaml").write_text(
         textwrap.dedent(

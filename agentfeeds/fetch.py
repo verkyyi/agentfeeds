@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -31,6 +33,7 @@ AGENTFEEDS_VERSION = "agentfeeds/0.3"
 DEFAULT_ROOT = Path.home() / ".agentfeeds"
 REQUEST_TIMEOUT_SECONDS = 20
 PARAMETER_PATTERN = re.compile(r"{([A-Za-z_][A-Za-z0-9_]*)}")
+LOCK_FILE_NAME = "agentfeeds-fetch.lock"
 
 
 def now_utc() -> str:
@@ -73,6 +76,30 @@ def atomic_write_json(path: Path, payload: object) -> None:
         handle.flush()
         os.fsync(handle.fileno())
     tmp_path.replace(path)
+
+
+@contextlib.contextmanager
+def fetch_lock(root: Path):
+    path = root / LOCK_FILE_NAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+", encoding="utf-8") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        try:
+            handle.seek(0)
+            handle.truncate()
+            handle.write(f"pid={os.getpid()} acquired_at={now_utc()}\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+            yield True
+        finally:
+            handle.seek(0)
+            handle.truncate()
+            handle.flush()
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def ensure_root(root: Path) -> None:
@@ -654,7 +681,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.regenerate_catalog:
         regenerate_catalog(root)
         return 0
-    return run_fetch(args, root)
+    with fetch_lock(root) as acquired:
+        if not acquired:
+            print(f"agentfeeds-fetch already running for {root}; skipping", file=sys.stderr)
+            return 0
+        return run_fetch(args, root)
 
 
 if __name__ == "__main__":
