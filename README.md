@@ -8,6 +8,8 @@ Personal agents often start sessions blind: users repeat project context, paste 
 
 ## Quick Demo
 
+![Agent Feeds terminal demo](docs/assets/agentfeeds-demo.gif)
+
 Install the Hermes integration:
 
 ```bash
@@ -232,6 +234,8 @@ MCP is a great tool interface. Agent Feeds is a local state substrate: backgroun
 RSS is one provider type. Agent Feeds also supports local files, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and operator-approved local commands. The product is the subscription/state layer for agents, not a human feed UI.
 
 ## Sharing
+
+See [docs/DEMO.md](docs/DEMO.md) for the demo transcript and talking points.
 
 See [docs/SHARING.md](docs/SHARING.md) for a short pitch, demo script, and release notes draft.
 
