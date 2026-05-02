@@ -17,13 +17,25 @@ git clone https://github.com/verkyyi/agentfeeds ~/.hermes/plugins-src/agentfeeds
 ~/.hermes/plugins-src/agentfeeds/integrations/hermes/agentfeeds/install.sh
 ```
 
-Restart Hermes, then ask:
+Restart Hermes, then try one prompt at a time:
 
 ```text
 What Agent Feeds providers can I subscribe to?
+```
+
+```text
 Subscribe me to Hacker News front page.
+```
+
+```text
 Show me the current Hacker News front page from Agent Feeds.
+```
+
+```text
 Subscribe my project notes at ~/notes/project.md as Project notes.
+```
+
+```text
 Refresh Project notes and summarize it.
 ```
 
@@ -53,12 +65,29 @@ Agent Feeds also gives Hermes a small local control surface for discovering prov
 
 ## What You Can Ask
 
+Each example is meant to be used as a single message to Hermes:
+
 ```text
 What Agent Feeds providers can I subscribe to?
+```
+
+```text
 Subscribe my project notes at ~/notes/project.md as Project notes.
+```
+
+```text
 Refresh Project notes and tell me what changed.
+```
+
+```text
 Subscribe me to Hacker News front page.
+```
+
+```text
 Subscribe me to OpenAI News from https://openai.com/news/rss.xml.
+```
+
+```text
 Can Agent Feeds subscribe to my SQLite task database? If not, draft a provider.
 ```
 
@@ -113,11 +142,17 @@ Full data stays on disk and is read only when relevant.
 
 ## Demo Flow
 
-After installing the Hermes integration, ask Hermes:
+After installing the Hermes integration, ask Hermes one prompt at a time:
 
 ```text
 What Agent Feeds providers can I subscribe to?
+```
+
+```text
 Subscribe me to Hacker News front page.
+```
+
+```text
 Show me the current Hacker News front page from Agent Feeds.
 ```
 
@@ -134,6 +169,9 @@ For a private local source:
 
 ```text
 Subscribe my project notes at ~/notes/project.md as Project notes.
+```
+
+```text
 Refresh Project notes and summarize it.
 ```
 

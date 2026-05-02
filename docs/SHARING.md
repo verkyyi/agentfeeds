@@ -30,13 +30,25 @@ cd agentfeeds
 ./integrations/hermes/agentfeeds/install.sh
 ```
 
-Then ask Hermes:
+Then ask Hermes one prompt at a time:
 
 ```text
 What Agent Feeds providers can I subscribe to?
+```
+
+```text
 Subscribe me to Hacker News front page.
+```
+
+```text
 Show me the current Hacker News front page from Agent Feeds.
+```
+
+```text
 Subscribe my project notes at ~/notes/project.md as Project notes.
+```
+
+```text
 Refresh Project notes and summarize it.
 ```
 

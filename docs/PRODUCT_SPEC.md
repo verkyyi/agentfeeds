@@ -175,10 +175,13 @@ Benefit:
 
 User subscribes to an ICS calendar or RSS feed.
 
-Hermes can later answer:
+Hermes can later answer one prompt at a time:
 
 ```text
 What is coming up on this calendar?
+```
+
+```text
 What changed in the feed?
 ```
 
@@ -225,13 +228,25 @@ Benefit:
 
 ## User Experience
 
-The preferred interface is natural language through Hermes:
+The preferred interface is natural language through Hermes. Each example is meant to be used as a single message:
 
 ```text
 What Agent Feeds providers can I subscribe to?
+```
+
+```text
 Subscribe me to Hacker News front page.
+```
+
+```text
 Subscribe my project notes at ~/notes/project.md as Project notes.
+```
+
+```text
 Refresh Project notes and summarize it.
+```
+
+```text
 Can Agent Feeds subscribe to my SQLite task database? If not, draft a provider.
 ```
 
