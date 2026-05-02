@@ -260,7 +260,8 @@ def cmd_discover(args: argparse.Namespace) -> int:
         ]
     for stream in streams:
         params = ", ".join(stream.get("parameters") or []) or "none"
-        print(f"{stream['id']}: {stream['title']} [params: {params}, mode: {stream['mode']}]")
+        source = f", source: {stream.get('source')}" if args.verbose and stream.get("source") else ""
+        print(f"{stream['id']}: {stream['title']} [params: {params}, mode: {stream['mode']}{source}]")
         if args.verbose:
             print(f"  {stream.get('description', '')}")
     return 0
@@ -386,6 +387,36 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     return fetch.main(["--root", str(args.root), "--stream", args.subscription_id])
 
 
+def cmd_providers_list(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    index = fetch.load_catalog_index(args.root)
+    for stream in index.get("streams") or []:
+        params = ", ".join(stream.get("parameters") or []) or "none"
+        print(f"{stream['id']}: {stream['title']} [params: {params}, source: {stream.get('source', 'builtin')}]")
+    return 0
+
+
+def cmd_providers_path(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    print(fetch.providers_root(args.root))
+    return 0
+
+
+def cmd_providers_validate(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    try:
+        paths = fetch.validate_provider_tree(args.root)
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if not paths:
+        print(f"No local providers found in {fetch.provider_streams_root(args.root)}")
+        return 0
+    for path in paths:
+        print(f"valid: {path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage Agent Feeds subscriptions")
     parser.add_argument("--root", type=Path, default=fetch.DEFAULT_ROOT, help="agentfeeds root directory")
@@ -421,6 +452,12 @@ def build_parser() -> argparse.ArgumentParser:
     status = subparsers.add_parser("status", help="show subscription state status")
     status.add_argument("--json", action="store_true")
     status.set_defaults(func=cmd_status)
+
+    providers = subparsers.add_parser("providers", help="manage provider catalog")
+    provider_subparsers = providers.add_subparsers(dest="provider_command", required=True)
+    provider_subparsers.add_parser("list", help="list built-in and local providers").set_defaults(func=cmd_providers_list)
+    provider_subparsers.add_parser("path", help="print the local provider directory").set_defaults(func=cmd_providers_path)
+    provider_subparsers.add_parser("validate", help="validate local providers").set_defaults(func=cmd_providers_validate)
 
     return parser
 

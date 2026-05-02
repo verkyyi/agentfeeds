@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 import feedparser
 import icalendar
 import jmespath
+import jsonschema
 import requests
 
 try:
@@ -77,6 +78,8 @@ def atomic_write_json(path: Path, payload: object) -> None:
 def ensure_root(root: Path) -> None:
     (root / "catalog-cache").mkdir(parents=True, exist_ok=True)
     (root / "state").mkdir(parents=True, exist_ok=True)
+    (root / "providers" / "streams").mkdir(parents=True, exist_ok=True)
+    (root / "providers" / "schemas" / "event-types").mkdir(parents=True, exist_ok=True)
     subscriptions = root / "subscriptions.yaml"
     if not subscriptions.exists():
         subscriptions.write_text(
@@ -102,6 +105,22 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def providers_root(root: Path) -> Path:
+    return root / "providers"
+
+
+def provider_streams_root(root: Path) -> Path:
+    return providers_root(root) / "streams"
+
+
+def provider_schemas_root(root: Path) -> Path:
+    return providers_root(root) / "schemas" / "event-types"
+
+
+def builtin_event_schemas_root() -> Path:
+    return repo_root() / "catalog" / "schemas" / "event-types"
+
+
 def update_catalog_cache(root: Path) -> None:
     source = repo_root() / "catalog" / "INDEX.json"
     if not source.exists():
@@ -115,7 +134,39 @@ def load_catalog_index(root: Path) -> dict:
     cache = root / "catalog-cache" / "INDEX.json"
     if not cache.exists():
         update_catalog_cache(root)
-    return json.loads(cache.read_text(encoding="utf-8"))
+    index = json.loads(cache.read_text(encoding="utf-8"))
+    streams = {stream["id"]: {**stream, "source": stream.get("source") or "builtin"} for stream in index.get("streams", [])}
+    for path in sorted(provider_streams_root(root).glob("**/*.yaml")):
+        stream = stream_summary(path, root)
+        if stream["id"] in streams:
+            continue
+        streams[stream["id"]] = stream
+    merged = {**index, "streams": sorted(streams.values(), key=lambda item: item["id"])}
+    merged["stream_count"] = len(merged["streams"])
+    return merged
+
+
+def stream_summary(path: Path, root: Path) -> dict:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        rel_path = str(path.relative_to(repo_root()))
+        source = "builtin"
+    except ValueError:
+        rel_path = str(path)
+        source = "local"
+    return {
+        "id": data["id"],
+        "title": data["title"],
+        "description": data["description"],
+        "type": data["type"],
+        "mode": data["mode"],
+        "tags": data.get("tags", []),
+        "parameters": [param["name"] for param in data.get("parameters", [])],
+        "auth": data["auth"],
+        "quality_tier": data["quality_tier"],
+        "path": rel_path,
+        "source": source,
+    }
 
 
 def load_stream_definition(root: Path, stream_id: str) -> dict:
@@ -126,8 +177,14 @@ def load_stream_definition(root: Path, stream_id: str) -> dict:
 
     candidate_paths = []
     if match.get("path"):
-        candidate_paths.append(repo_root() / match["path"])
-        candidate_paths.append(root / "catalog-cache" / match["path"])
+        match_path = Path(match["path"])
+        if match_path.is_absolute():
+            candidate_paths.append(match_path)
+        else:
+            candidate_paths.append(repo_root() / match["path"])
+            candidate_paths.append(root / "catalog-cache" / match["path"])
+            candidate_paths.append(providers_root(root) / match["path"])
+    candidate_paths.extend(provider_streams_root(root).glob("**/*.yaml"))
     candidate_paths.extend((repo_root() / "catalog" / "streams").glob("**/*.yaml"))
 
     for path in candidate_paths:
@@ -137,6 +194,48 @@ def load_stream_definition(root: Path, stream_id: str) -> dict:
         if data.get("id") == stream_id:
             return data
     raise FileNotFoundError(f"stream definition not found for {stream_id}")
+
+
+def schema_path_for_url(root: Path, schema_url: str) -> Path:
+    name = schema_url.rstrip("/").split("/")[-1]
+    for path in [provider_schemas_root(root) / name, builtin_event_schemas_root() / name]:
+        if path.exists():
+            return path
+    raise FileNotFoundError(f"referenced schema not found locally: {schema_url}")
+
+
+def validate_stream_file(path: Path, root: Path = DEFAULT_ROOT) -> None:
+    stream = yaml.safe_load(path.read_text(encoding="utf-8"))
+    schema = json.loads((repo_root() / "catalog" / "schemas" / "stream-definition.v0.3.json").read_text(encoding="utf-8"))
+    jsonschema.validate(stream, schema)
+
+    schema_path = schema_path_for_url(root, stream["schema_url"])
+    json.loads(schema_path.read_text(encoding="utf-8"))
+
+    adapter_kind = stream["adapter"]["kind"]
+    if adapter_kind in {"json_http", "paginated_json_http"}:
+        for required in ("url", "method", "transform"):
+            if required not in stream["adapter"]:
+                raise ValueError(f"{path}: adapter.{required} is required for {adapter_kind}")
+    if adapter_kind in {"rss", "ical"} and "url" not in stream["adapter"]:
+        raise ValueError(f"{path}: adapter.url is required for {adapter_kind}")
+    if adapter_kind == "local_file" and "path" not in stream["adapter"]:
+        raise ValueError(f"{path}: adapter.path is required for local_file")
+
+
+def validate_provider_tree(root: Path) -> list[Path]:
+    stream_paths = sorted(provider_streams_root(root).glob("**/*.yaml"))
+    seen: dict[str, Path] = {}
+    builtin_ids = {stream["id"] for stream in json.loads((repo_root() / "catalog" / "INDEX.json").read_text(encoding="utf-8")).get("streams", [])}
+    for path in stream_paths:
+        validate_stream_file(path, root)
+        stream_id = yaml.safe_load(path.read_text(encoding="utf-8"))["id"]
+        if stream_id in builtin_ids:
+            raise ValueError(f"{path}: local provider id conflicts with built-in provider: {stream_id}")
+        if stream_id in seen:
+            raise ValueError(f"{path}: duplicate local provider id also defined in {seen[stream_id]}: {stream_id}")
+        seen[stream_id] = path
+    return stream_paths
 
 
 def substitute(value: object, parameters: dict) -> object:

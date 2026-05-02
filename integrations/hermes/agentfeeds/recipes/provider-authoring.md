@@ -14,10 +14,11 @@ Use this when the user wants Agent Feeds to support a source that no current pro
    - `snapshot` for one current state.
    - `event` for a list of recent items.
 5. Define required parameters. Do not bake user-specific secrets into provider YAML.
-6. Create `catalog/streams/<category>/<name>.yaml`.
-7. Reuse an existing schema when possible. If needed, create `catalog/schemas/event-types/<type>.v1.json`.
-8. Keep provider descriptions short and operator-facing. Include tags that help `agentfeeds discover`.
-9. Run `recipes/provider-testing.md`.
+6. Run `agentfeeds providers path` to locate the local provider root.
+7. Create `~/.agentfeeds/providers/streams/<category>/<name>.yaml`.
+8. Reuse an existing built-in schema when possible. If needed, create `~/.agentfeeds/providers/schemas/event-types/<type>.v1.json`.
+9. Keep provider descriptions short and operator-facing. Include tags that help `agentfeeds discover`.
+10. Run `recipes/provider-testing.md`.
 
 For local/private sources, prefer read-only snapshots. Provider adapters should read from the source and write Agent Feeds state; they should not mutate the original source.
 

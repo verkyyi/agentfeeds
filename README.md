@@ -107,9 +107,9 @@ Can Agent Feeds subscribe to my local SQLite task database? If not, draft a prov
 Hermes should:
 
 - check existing providers first
-- draft provider YAML under `catalog/streams/`
-- draft or reuse a schema under `catalog/schemas/event-types/`
-- validate the provider
+- draft provider YAML under `~/.agentfeeds/providers/streams/`
+- draft or reuse a schema under `~/.agentfeeds/providers/schemas/event-types/`
+- validate the provider with `agentfeeds providers validate`
 - smoke-test it with a temporary Agent Feeds root before touching your live subscriptions
 
 For personal agents, prefer local/private read-only providers before adding public feeds.
@@ -122,6 +122,9 @@ You can inspect Agent Feeds directly when needed:
 agentfeeds list
 agentfeeds status
 agentfeeds discover local
+agentfeeds providers list
+agentfeeds providers path
+agentfeeds providers validate
 ```
 
 These commands are mainly for debugging. The normal UX is to ask Hermes for the outcome you want.

@@ -76,6 +76,10 @@ agentfeeds/
 ├── catalog.md                       # always-loaded metadata for the agent
 ├── catalog-cache/                   # local cache of the public catalog (refreshed weekly)
 │   └── INDEX.json
+├── providers/                       # user-local provider pack
+│   ├── streams/                     # custom provider YAML
+│   └── schemas/
+│       └── event-types/             # custom event schemas
 └── state/                           # state files, one per subscription
     ├── weather.gov/
     │   └── forecast.lat=37.33,lon=-121.89.json
@@ -84,6 +88,8 @@ agentfeeds/
 ```
 
 The `~/.agentfeeds/` root is created by the `subscribe` recipe on first use. It is the only place the bundle writes to.
+
+Built-in providers ship in the repo catalog. User-local providers live under `~/.agentfeeds/providers/` and are merged into discovery at runtime. Local provider IDs must not conflict with built-in provider IDs.
 
 -----
 
@@ -252,7 +258,7 @@ When subscribing to a provider with parameters, materialize it into a concrete i
 
 ## 7. Stream Definition Format (catalog entries)
 
-Each file under `catalog/streams/` is a YAML stream definition.
+Each file under `catalog/streams/` or `~/.agentfeeds/providers/streams/` is a YAML stream definition.
 
 ```yaml
 id: weather/openmeteo-current
@@ -424,6 +430,10 @@ The SKILL.md should be 80-150 lines. It is always in context, so it must be ters
 
 **`recipes/discover.md`** — search the catalog INDEX, present matches to the user, suggest which to subscribe to.
 
+**`recipes/provider-authoring.md`** — draft user-local provider YAML under `~/.agentfeeds/providers/streams/` and schemas under `~/.agentfeeds/providers/schemas/event-types/`.
+
+**`recipes/provider-testing.md`** — run `agentfeeds providers validate`, confirm discovery, and smoke-test with a temporary Agent Feeds root before subscribing in the live root.
+
 -----
 
 ## 10. Polling Installer (`bundle/bin/agentfeeds-install-poll`)
@@ -538,6 +548,7 @@ You’re done when all of these are true:
 - [ ] The bundle’s `SKILL.md` + recipes work in Hermes: subscribe, unsubscribe, refresh, discover all complete without error.
 - [ ] At least one full end-to-end demo works: cold install → `subscribe me to weather in San Jose` → state file exists → user asks “what’s the weather?” → agent reads state file (no web search) → correct answer.
 - [ ] Hermes can translate operator intent into Agent Feeds actions without requiring the operator to know CLI flags.
+- [ ] Hermes can draft and validate a user-local provider under `~/.agentfeeds/providers/` without modifying the built-in catalog.
 - [ ] All tests in `tests/` pass.
 - [ ] README explains install, basic usage, and how to contribute a stream.
 - [ ] Your own Hermes setup has been running this for at least 7 days without intervention.

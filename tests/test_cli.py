@@ -140,3 +140,16 @@ def test_cli_materializes_local_file_subscription(tmp_path):
             "parameters": {"path": str(source)},
         }
     ]
+
+
+def test_cli_provider_helpers(tmp_path, capsys):
+    assert cli.main(["--root", str(tmp_path), "providers", "path"]) == 0
+    assert capsys.readouterr().out.strip() == str(tmp_path / "providers")
+
+    assert cli.main(["--root", str(tmp_path), "providers", "validate"]) == 0
+    assert "No local providers found" in capsys.readouterr().out
+
+    assert cli.main(["--root", str(tmp_path), "providers", "list"]) == 0
+    out = capsys.readouterr().out
+    assert "local/file: Local file" in out
+    assert "source: builtin" in out

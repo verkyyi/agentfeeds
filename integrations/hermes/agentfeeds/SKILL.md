@@ -56,6 +56,9 @@ agentfeeds subscribe <provider-id> key=value --id <subscription-id> --title "<ti
 agentfeeds subscribe local/file path=/absolute/or/~/file.md --title "<title>"
 agentfeeds unsubscribe <subscription-id>
 agentfeeds discover <query>
+agentfeeds providers list
+agentfeeds providers path
+agentfeeds providers validate
 agentfeeds status
 ```
 
@@ -82,8 +85,8 @@ When the user asks whether Agent Feeds can support a new source, first run `agen
 If there is no suitable provider, help draft one:
 
 ```bash
-uv run python scripts/validate-stream.py catalog/streams/<category>/<name>.yaml
-uv run python scripts/build-index.py
+agentfeeds providers path
+agentfeeds providers validate
 ```
 
 Use `recipes/provider-authoring.md` to create provider YAML and schemas. Use `recipes/provider-testing.md` to validate and smoke-test a provider. Prefer private/local providers for personal-agent awareness before suggesting public feeds.
@@ -95,7 +98,7 @@ Use `recipes/provider-authoring.md` to create provider YAML and schemas. Use `re
 - Change subscriptions with `agentfeeds subscribe` / `agentfeeds unsubscribe`.
 - Never hand-write files in `~/.agentfeeds/state/`.
 - Use `agentfeeds-fetch --regenerate-catalog` after subscription edits that do not fetch.
-- Provider definitions live in `catalog/streams/`; event schemas live in `catalog/schemas/event-types/`.
+- User-local provider definitions live in `~/.agentfeeds/providers/streams/`; user-local event schemas live in `~/.agentfeeds/providers/schemas/event-types/`.
 
 ## Freshness Rule
 
