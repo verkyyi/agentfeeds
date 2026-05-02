@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 import textwrap
 
 import agentfeeds.fetch as fetcher
@@ -157,6 +158,66 @@ def test_local_file_fetch_writes_snapshot_state(tmp_path):
     assert state["data"]["name"] == "notes.md"
     assert state["data"]["content"] == "# Notes\n\nLocal context.\n"
     assert len(state["data"]["sha256"]) == 64
+
+
+def test_local_command_fetch_writes_stdout_snapshot():
+    stream = {
+        "id": "personal/command",
+        "title": "Command",
+        "description": "Command snapshot",
+        "type": "local.command",
+        "mode": "snapshot",
+        "schema_url": "https://agentfeeds.dev/schemas/local.command.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://personal.command/command",
+        "adapter": {
+            "kind": "local_command",
+            "command": [sys.executable, "-c", "print('hello from command')"],
+        },
+    }
+
+    stream_uri, events = fetcher.run_adapter(stream, {})
+
+    assert stream_uri == "feed://personal.command/command"
+    assert len(events) == 1
+    assert events[0]["data"]["exit_code"] == 0
+    assert events[0]["data"]["stdout"] == "hello from command\n"
+    assert events[0]["data"]["stderr"] == ""
+    assert events[0]["data"]["parsed_json"] is None
+    assert events[0]["data"]["transformed"] is None
+
+
+def test_local_command_fetch_can_parse_json_and_transform():
+    stream = {
+        "id": "personal/json-command",
+        "title": "JSON command",
+        "description": "JSON command snapshot",
+        "type": "local.command",
+        "mode": "snapshot",
+        "schema_url": "https://agentfeeds.dev/schemas/local.command.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://personal.command/json",
+        "adapter": {
+            "kind": "local_command",
+            "command": [
+                sys.executable,
+                "-c",
+                "import json; print(json.dumps({'items': [{'title': 'A'}, {'title': 'B'}]}))",
+            ],
+            "parse": "json",
+            "transform": {
+                "language": "jmespath",
+                "expression": "items[].title",
+            },
+        },
+    }
+
+    _stream_uri, events = fetcher.run_adapter(stream, {})
+
+    data = events[0]["data"]
+    assert data["exit_code"] == 0
+    assert data["parsed_json"] == {"items": [{"title": "A"}, {"title": "B"}]}
+    assert data["transformed"] == ["A", "B"]
 
 
 def test_github_issue_and_pr_adapters_transform_payloads(tmp_path, monkeypatch):

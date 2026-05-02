@@ -21,6 +21,7 @@ from agentfeeds import fetch
 INSTANCE_ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9][a-z0-9-]*$")
 ADAPTER_KINDS = {
     "local_file": "Read one local text, Markdown, or JSON file as a snapshot.",
+    "local_command": "Run an argv-only local command and snapshot stdout, with optional JSON parsing.",
     "json_http": "Fetch one HTTP JSON document and transform it into a snapshot.",
     "paginated_json_http": "Fetch an HTTP JSON array and transform it into event items.",
     "rss": "Fetch an RSS or Atom feed as event items.",
@@ -118,6 +119,8 @@ def _schema_payload(provider_id: str, mode: str) -> dict:
             "url": {"type": ["string", "null"]},
             "content": {"type": ["string", "null"]},
             "updated_at": {"type": ["string", "null"]},
+            "stdout": {"type": ["string", "null"]},
+            "transformed": {},
         },
     }
     if mode == "event":
@@ -148,6 +151,23 @@ def scaffold_stream(provider_id: str, adapter_kind: str) -> tuple[dict, dict, Pa
         parameters = [{"name": "path", "type": "string", "description": "Local file path", "required": True}]
         source_uri_template = f"feed://{type_name}/file?path={{path}}"
         adapter = {"kind": "local_file", "path": "{path}"}
+    elif adapter_kind == "local_command":
+        parameters = []
+        source_uri_template = f"feed://{type_name}/command"
+        adapter = {
+            "kind": "local_command",
+            "command": ["echo", "{\"title\":\"example\",\"status\":\"ok\"}"],
+            "timeout_seconds": 20,
+            "max_output_bytes": 1048576,
+            "parse": "json",
+            "transform": {
+                "language": "jmespath",
+                "expression": "{title: title, content: status}",
+            },
+        }
+        type_name = "local.command"
+        schema_name = "local.command.v1.json"
+        schema_path = Path(schema_name)
     elif adapter_kind == "json_http":
         parameters = [{"name": "url", "type": "string", "description": "JSON API URL", "required": True}]
         source_uri_template = f"feed://{type_name}/json?url={{url}}"
@@ -555,12 +575,12 @@ def cmd_providers_scaffold(args: argparse.Namespace) -> int:
     stream_path.parent.mkdir(parents=True, exist_ok=True)
     stream_path.write_text(yaml.safe_dump(stream, sort_keys=False), encoding="utf-8")
 
-    if args.adapter_kind not in {"rss", "ical"} and (args.force or not schema_path.exists()):
+    if args.adapter_kind not in {"rss", "ical", "local_command"} and (args.force or not schema_path.exists()):
         schema_path.parent.mkdir(parents=True, exist_ok=True)
         schema_path.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     print(f"wrote: {stream_path}")
-    if args.adapter_kind in {"rss", "ical"}:
+    if args.adapter_kind in {"rss", "ical", "local_command"}:
         print(f"schema: built-in {stream['schema_url']}")
     else:
         print(f"wrote: {schema_path}")

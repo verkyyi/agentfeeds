@@ -5,6 +5,7 @@ Use this when the user wants Agent Feeds to support a source that no current pro
 1. Run `agentfeeds discover <query>` and confirm no existing provider fits.
 2. Run `agentfeeds providers adapters` and classify the source:
    - `local_file` for one local text, Markdown, or JSON file.
+   - `local_command` for an explicitly approved local read command.
    - `json_http` for one HTTP JSON snapshot.
    - `paginated_json_http` for HTTP JSON event lists.
    - `rss` for RSS or Atom feeds.
@@ -22,6 +23,22 @@ Use this when the user wants Agent Feeds to support a source that no current pro
 11. Run `recipes/provider-testing.md`.
 
 For local/private sources, prefer read-only snapshots. Provider adapters should read from the source and write Agent Feeds state; they should not mutate the original source.
+
+For `local_command`, use argv arrays only. Do not use shell strings. Only create command providers for commands the operator explicitly requested or approved. Prefer commands that read state and print output; avoid commands that mutate files, cloud resources, accounts, or external services.
+
+Optional JSON parsing for command output:
+
+```yaml
+adapter:
+  kind: local_command
+  command: ["example-cli", "status", "--json"]
+  timeout_seconds: 20
+  max_output_bytes: 1048576
+  parse: json
+  transform:
+    language: jmespath
+    expression: "{title: name, content: status, updated_at: updated_at}"
+```
 
 Minimal stream template, equivalent to `agentfeeds providers scaffold local_file local/example`:
 

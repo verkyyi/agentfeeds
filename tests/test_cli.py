@@ -157,6 +157,7 @@ def test_cli_provider_helpers(tmp_path, capsys):
     assert cli.main(["--root", str(tmp_path), "providers", "adapters"]) == 0
     out = capsys.readouterr().out
     assert "local_file:" in out
+    assert "local_command:" in out
     assert "json_http:" in out
 
 
@@ -199,6 +200,30 @@ def test_cli_scaffold_reuses_builtin_schema_for_rss(tmp_path):
     assert stream["type"] == "rss.item"
     assert stream["schema_url"] == "https://agentfeeds.dev/schemas/rss-item.v1.json"
     assert not (tmp_path / "providers" / "schemas" / "event-types" / "news.example.v1.json").exists()
+
+
+def test_cli_scaffold_reuses_builtin_schema_for_local_command(tmp_path):
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "providers",
+        "scaffold",
+        "local_command",
+        "personal/command",
+    ]) == 0
+
+    stream_path = tmp_path / "providers" / "streams" / "personal" / "command.yaml"
+    stream = yaml.safe_load(stream_path.read_text(encoding="utf-8"))
+
+    assert stream["id"] == "personal/command"
+    assert stream["mode"] == "snapshot"
+    assert stream["type"] == "local.command"
+    assert stream["schema_url"] == "https://agentfeeds.dev/schemas/local.command.v1.json"
+    assert stream["adapter"]["kind"] == "local_command"
+    assert stream["adapter"]["parse"] == "json"
+    assert stream["adapter"]["transform"]["language"] == "jmespath"
+    assert not (tmp_path / "providers" / "schemas" / "event-types" / "personal.command.v1.json").exists()
+    assert cli.main(["--root", str(tmp_path), "providers", "validate"]) == 0
 
 
 def test_cli_materializes_github_issue_and_pr_subscriptions(tmp_path):

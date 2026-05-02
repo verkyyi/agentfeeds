@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import sys
+import subprocess
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -32,6 +33,8 @@ SPEC_VERSION = "0.3"
 AGENTFEEDS_VERSION = "agentfeeds/0.3"
 DEFAULT_ROOT = Path.home() / ".agentfeeds"
 REQUEST_TIMEOUT_SECONDS = 20
+COMMAND_TIMEOUT_SECONDS = 20
+COMMAND_MAX_OUTPUT_BYTES = 1024 * 1024
 PARAMETER_PATTERN = re.compile(r"{([A-Za-z_][A-Za-z0-9_]*)}")
 LOCK_FILE_NAME = "agentfeeds-fetch.lock"
 
@@ -248,6 +251,10 @@ def validate_stream_file(path: Path, root: Path = DEFAULT_ROOT) -> None:
         raise ValueError(f"{path}: adapter.url is required for {adapter_kind}")
     if adapter_kind == "local_file" and "path" not in stream["adapter"]:
         raise ValueError(f"{path}: adapter.path is required for local_file")
+    if adapter_kind == "local_command":
+        command = stream["adapter"].get("command")
+        if not isinstance(command, list) or not command or not all(isinstance(item, str) for item in command):
+            raise ValueError(f"{path}: adapter.command must be a non-empty string array for local_command")
 
 
 def validate_provider_tree(root: Path) -> list[Path]:
@@ -420,6 +427,58 @@ def fetch_local_file(stream: dict, adapter: dict, stream_uri: str) -> list[dict]
     return [envelope(stream, stream_uri, data["sha256"], data, modified_at)]
 
 
+def _decode_limited(raw: bytes, limit: int) -> tuple[str, bool]:
+    truncated = len(raw) > limit
+    return raw[:limit].decode("utf-8", errors="replace"), truncated
+
+
+def fetch_local_command(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
+    command = adapter.get("command")
+    if not isinstance(command, list) or not command or not all(isinstance(item, str) for item in command):
+        raise ValueError(f"{stream['id']}: local_command adapter.command must be a non-empty string array")
+
+    timeout_seconds = int(adapter.get("timeout_seconds") or COMMAND_TIMEOUT_SECONDS)
+    max_output_bytes = int(adapter.get("max_output_bytes") or COMMAND_MAX_OUTPUT_BYTES)
+    cwd = adapter.get("cwd")
+    if cwd is not None:
+        cwd = str(Path(str(cwd)).expanduser())
+
+    started_at = now_utc()
+    completed = subprocess.run(
+        command,
+        cwd=cwd,
+        env={key: os.environ[key] for key in ("HOME", "PATH", "USER", "SHELL") if key in os.environ},
+        capture_output=True,
+        timeout=timeout_seconds,
+        check=False,
+    )
+    ran_at = now_utc()
+    stdout, stdout_truncated = _decode_limited(completed.stdout, max_output_bytes)
+    stderr, stderr_truncated = _decode_limited(completed.stderr, max_output_bytes)
+
+    parsed_json = None
+    transformed = None
+    if adapter.get("parse") == "json":
+        parsed_json = json.loads(stdout or "null")
+        expression = adapter.get("transform", {}).get("expression")
+        transformed = jmespath_search(expression, parsed_json) if expression else parsed_json
+
+    data = {
+        "command": command,
+        "cwd": cwd,
+        "exit_code": completed.returncode,
+        "stdout": stdout,
+        "stderr": stderr,
+        "stdout_truncated": stdout_truncated,
+        "stderr_truncated": stderr_truncated,
+        "parsed_json": parsed_json,
+        "transformed": transformed,
+        "started_at": started_at,
+        "ran_at": ran_at,
+    }
+    return [envelope(stream, stream_uri, stable_hash(data), data, ran_at)]
+
+
 def run_adapter(stream: dict, parameters: dict) -> tuple[str, list[dict]]:
     validate_parameters(stream, parameters)
     stream_uri = source_uri_for(stream, parameters)
@@ -433,6 +492,8 @@ def run_adapter(stream: dict, parameters: dict) -> tuple[str, list[dict]]:
         return stream_uri, fetch_ical(stream, adapter, stream_uri)
     if kind == "local_file":
         return stream_uri, fetch_local_file(stream, adapter, stream_uri)
+    if kind == "local_command":
+        return stream_uri, fetch_local_command(stream, adapter, stream_uri)
     raise ValueError(f"unsupported adapter kind: {kind}")
 
 

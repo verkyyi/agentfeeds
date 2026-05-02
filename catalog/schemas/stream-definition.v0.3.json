@@ -70,7 +70,7 @@
       "required": ["kind"],
       "properties": {
         "kind": {
-          "enum": ["json_http", "paginated_json_http", "rss", "ical", "local_file"]
+          "enum": ["json_http", "paginated_json_http", "rss", "ical", "local_file", "local_command"]
         }
       }
     },
