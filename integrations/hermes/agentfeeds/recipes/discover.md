@@ -10,3 +10,4 @@ Use this when the user asks what Agent Feeds streams are available.
    - auth requirement
    - quality tier
 3. Suggest one best stream to subscribe to when there is a clear match.
+4. If no provider fits, offer to draft one with `recipes/provider-authoring.md`.

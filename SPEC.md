@@ -390,6 +390,8 @@ The fetcher is a one-shot script. Polling is achieved by cron/launchd invoking i
 
 ## 9. The Bundle (`bundle/SKILL.md` and recipes)
 
+The primary user experience is agent-orchestrated. The user asks for outcomes in natural language; the agent uses `agentfeeds` and `agentfeeds-fetch` as an internal control plane, then reports results. The CLI exists for agents, scripts, and debugging, not as the normal operator workflow.
+
 ### 9.1 SKILL.md (always loaded)
 
 Must teach the agent these behaviors:
@@ -399,6 +401,7 @@ Must teach the agent these behaviors:
 1. **When the user asks to subscribe to something:** Load `recipes/subscribe.md` and follow it.
 1. **When state appears stale and the user asks about it:** Run `agentfeeds-fetch --stream <subscription-id>` to refresh, then re-read.
 1. **When the user asks what’s available:** Load `recipes/discover.md` to search the catalog.
+1. **When no provider fits:** Offer to draft a provider and validate it before touching the live subscription root.
 
 The SKILL.md should be 80-150 lines. It is always in context, so it must be terse.
 
@@ -534,6 +537,7 @@ You’re done when all of these are true:
 - [ ] `~/.agentfeeds/catalog.md` regenerates correctly after each fetch.
 - [ ] The bundle’s `SKILL.md` + recipes work in Hermes: subscribe, unsubscribe, refresh, discover all complete without error.
 - [ ] At least one full end-to-end demo works: cold install → `subscribe me to weather in San Jose` → state file exists → user asks “what’s the weather?” → agent reads state file (no web search) → correct answer.
+- [ ] Hermes can translate operator intent into Agent Feeds actions without requiring the operator to know CLI flags.
 - [ ] All tests in `tests/` pass.
 - [ ] README explains install, basic usage, and how to contribute a stream.
 - [ ] Your own Hermes setup has been running this for at least 7 days without intervention.

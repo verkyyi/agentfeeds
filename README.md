@@ -129,6 +129,40 @@ When relevant, read ~/.agentfeeds/catalog.md to locate the state file before web
 </agentfeeds>
 ```
 
+### Hermes Operator UX
+
+Hermes operators should not need to use the CLI directly. Treat the CLI as Hermes' internal control plane: the operator asks for an outcome, Hermes discovers providers, subscribes, refreshes, reads state files, and reports the result.
+
+Examples:
+
+```text
+What Agent Feeds providers can I subscribe to?
+Subscribe my project notes at ~/notes/project.md as Project notes.
+Refresh Project notes and tell me what changed.
+Can Agent Feeds subscribe to my SQLite task database? If not, draft a provider.
+```
+
+Expected Hermes behavior:
+
+- Use `agentfeeds discover <query>` internally to find providers.
+- Use `agentfeeds subscribe ...` internally to materialize subscriptions.
+- Use `agentfeeds refresh <subscription-id>` before answering when freshness matters.
+- Read `~/.agentfeeds/catalog.md` and state JSON files before searching the web.
+- Offer to draft a provider when no existing provider fits.
+- Report outcomes and file locations, not raw CLI instructions, unless the operator asks for them.
+
+### Hermes Provider Authoring
+
+The Hermes skill can help operators draft new providers when `agentfeeds discover <query>` does not find a fit. Provider definitions live under `catalog/streams/`, schemas live under `catalog/schemas/event-types/`, and every provider should pass:
+
+```bash
+uv run python scripts/validate-stream.py catalog/streams/<category>/<name>.yaml
+uv run python scripts/build-index.py
+uv run pytest
+```
+
+For personal agents, prefer local/private read-only providers first, such as `local/file`, before adding public feeds.
+
 ## Status
 
 The fetcher supports the v0.3 adapter kinds, subscription polling, state writes, event merging, local catalog cache updates, `catalog.md` regeneration, and local background polling installation.

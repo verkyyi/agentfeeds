@@ -7,6 +7,8 @@ description: Use local Agent Feeds subscriptions and state files for ambient con
 
 Use Agent Feeds to answer questions from local subscribed data streams before searching the web.
 
+Hermes should treat Agent Feeds commands as an internal control plane. The operator asks for outcomes in natural language; run the needed commands, inspect the resulting files, and report what changed. Do not make CLI flags the primary user experience.
+
 ## Session Start
 
 At the start of a session, check whether `~/.agentfeeds/catalog.md` exists.
@@ -42,9 +44,11 @@ Use `agentfeeds-fetch --all` only when the user asks to refresh all subscription
 
 When the user asks to subscribe to something, load `recipes/subscribe.md` and follow it.
 
-Subscriptions are stored in `~/.agentfeeds/subscriptions.yaml`. Prefer the `agentfeeds` CLI for changes; the fetcher owns state-file writes.
+When no provider fits the requested source, offer to draft a provider and load `recipes/provider-authoring.md`.
 
-Prefer the management CLI for subscription changes:
+Subscriptions are stored in `~/.agentfeeds/subscriptions.yaml`. Use the `agentfeeds` CLI internally for changes; the fetcher owns state-file writes.
+
+Command patterns:
 
 ```bash
 agentfeeds subscribe <provider-id> key=value
@@ -71,6 +75,19 @@ agentfeeds-fetch --update-catalog
 
 Then retry discovery.
 
+## Provider Authoring
+
+When the user asks whether Agent Feeds can support a new source, first run `agentfeeds discover <query>`.
+
+If there is no suitable provider, help draft one:
+
+```bash
+uv run python scripts/validate-stream.py catalog/streams/<category>/<name>.yaml
+uv run python scripts/build-index.py
+```
+
+Use `recipes/provider-authoring.md` to create provider YAML and schemas. Use `recipes/provider-testing.md` to validate and smoke-test a provider. Prefer private/local providers for personal-agent awareness before suggesting public feeds.
+
 ## File Rules
 
 - Read `~/.agentfeeds/catalog.md` for the active subscription summary.
@@ -78,6 +95,7 @@ Then retry discovery.
 - Change subscriptions with `agentfeeds subscribe` / `agentfeeds unsubscribe`.
 - Never hand-write files in `~/.agentfeeds/state/`.
 - Use `agentfeeds-fetch --regenerate-catalog` after subscription edits that do not fetch.
+- Provider definitions live in `catalog/streams/`; event schemas live in `catalog/schemas/event-types/`.
 
 ## Freshness Rule
 
