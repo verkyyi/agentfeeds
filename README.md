@@ -182,3 +182,5 @@ These commands are mainly for debugging. The normal UX is to ask Hermes for the 
 ## Sharing
 
 See [docs/SHARING.md](docs/SHARING.md) for a short pitch, demo script, and release notes draft.
+
+For product framing, use cases, and benefits, see [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).

@@ -20,6 +20,8 @@ Current providers include local files, RSS/Atom, Hacker News, GitHub releases/is
 
 Repo: https://github.com/verkyyi/agentfeeds
 
+Product spec: https://github.com/verkyyi/agentfeeds/blob/main/docs/PRODUCT_SPEC.md
+
 ## Demo Script
 
 ```bash
@@ -89,4 +91,3 @@ The core design is intentionally file-based: detailed state stays in JSON files 
 - local-first AI tooling communities
 - people building agent context, memory, or awareness systems
 - developers who want agents to read local state without always using web search
-
