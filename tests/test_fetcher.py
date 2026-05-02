@@ -220,6 +220,52 @@ def test_local_command_fetch_can_parse_json_and_transform():
     assert data["transformed"] == ["A", "B"]
 
 
+def test_local_command_fetch_event_mode_emits_one_event_per_item():
+    stream = {
+        "id": "personal/recent-items",
+        "title": "Recent items",
+        "description": "Recent items from a local command",
+        "type": "personal.item",
+        "mode": "event",
+        "schema_url": "https://agentfeeds.dev/schemas/personal.item.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://personal.command/recent-items",
+        "adapter": {
+            "kind": "local_command",
+            "command": [
+                sys.executable,
+                "-c",
+                (
+                    "import json; "
+                    "print(json.dumps({'items': ["
+                    "{'id': 'a', 'title': 'A', 'summary': 'Alpha', 'updated_at': '2026-05-01T00:00:00Z'}, "
+                    "{'id': 'b', 'title': 'B', 'summary': 'Beta', 'updated_at': '2026-05-01T01:00:00Z'}"
+                    "]}))"
+                ),
+            ],
+            "parse": "json",
+            "items_from": "items",
+            "id_from": "id",
+            "time_from": "updated_at",
+            "transform": {
+                "language": "jmespath",
+                "expression": "{title: title, content: summary, updated_at: updated_at}",
+            },
+        },
+    }
+
+    _stream_uri, events = fetcher.run_adapter(stream, {})
+
+    assert [event["id"] for event in events] == ["a", "b"]
+    assert [event["time"] for event in events] == ["2026-05-01T00:00:00Z", "2026-05-01T01:00:00Z"]
+    assert events[0]["data"] == {
+        "title": "A",
+        "content": "Alpha",
+        "updated_at": "2026-05-01T00:00:00Z",
+    }
+    assert "stdout" not in events[0]["data"]
+
+
 def test_github_issue_and_pr_adapters_transform_payloads(tmp_path, monkeypatch):
     issues = fetcher.load_stream_definition(tmp_path, "dev/github-issues")
     prs = fetcher.load_stream_definition(tmp_path, "dev/github-prs")

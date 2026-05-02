@@ -21,7 +21,7 @@ from agentfeeds import fetch
 INSTANCE_ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9][a-z0-9-]*$")
 ADAPTER_KINDS = {
     "local_file": "Read one local text, Markdown, or JSON file as a snapshot.",
-    "local_command": "Run an argv-only local command and snapshot stdout, with optional JSON parsing.",
+    "local_command": "Run an argv-only local command for a snapshot or JSON-derived events.",
     "json_http": "Fetch one HTTP JSON document and transform it into a snapshot.",
     "paginated_json_http": "Fetch an HTTP JSON array and transform it into event items.",
     "rss": "Fetch an RSS or Atom feed as event items.",

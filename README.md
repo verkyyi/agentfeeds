@@ -115,7 +115,7 @@ Hermes should:
 - validate the provider with `agentfeeds providers validate`
 - smoke-test it with a temporary Agent Feeds root before touching your live subscriptions
 
-Command-based providers are supported through `local_command`, but Hermes should only create them for commands you explicitly approve. They run without a shell, with timeout and output limits, and can optionally parse stdout as JSON.
+Command-based providers are supported through `local_command`, but Hermes should only create them for commands you explicitly approve. They run without a shell, with timeout and output limits. They can capture one command snapshot or parse JSON output into event items.
 
 For personal agents, prefer local/private read-only providers before adding public feeds.
 

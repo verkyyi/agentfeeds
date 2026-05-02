@@ -311,7 +311,7 @@ contributed_by: lee
 |`adapter.kind`       |What it does                                                                                         |
 |---------------------|-----------------------------------------------------------------------------------------------------|
 |`local_file`         |Read one local text, Markdown, or JSON file and emit one snapshot.                                   |
-|`local_command`      |Run an argv-only local command, capture stdout/stderr, optionally parse stdout JSON, emit one snapshot.|
+|`local_command`      |Run an argv-only local command. Use `snapshot` to capture command output, or `event` with JSON `items_from` to emit one event per item.|
 |`json_http`          |GET a URL, run a JMESPath transform on the response, emit one envelope. Use for `snapshot` streams.  |
 |`paginated_json_http`|GET a URL, run a transform that yields an array, emit one envelope per item. Use for `event` streams.|
 |`rss`                |Parse an RSS/Atom/JSON Feed URL, emit one envelope per entry, `mode: event`, schema = `rss-item.v1`. |
@@ -444,7 +444,7 @@ agentfeeds providers scaffold <adapter-kind> <provider-id>
 agentfeeds providers validate
 ```
 
-`local_command` is argv-only and intended for explicitly approved read commands. It captures stdout/stderr with a timeout and output cap, and may parse stdout as JSON before applying a JMESPath transform.
+`local_command` is argv-only and intended for explicitly approved read commands. In `snapshot` mode it captures stdout/stderr with a timeout and output cap, and may parse stdout as JSON before applying a JMESPath transform. In `event` mode it requires `parse: json`, selects an item array with `items_from`, optionally uses `id_from` and `time_from`, and applies the transform to each item.
 
 -----
 

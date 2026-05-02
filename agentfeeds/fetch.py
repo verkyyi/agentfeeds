@@ -11,8 +11,8 @@ import json
 import os
 import re
 import shutil
-import sys
 import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -255,6 +255,8 @@ def validate_stream_file(path: Path, root: Path = DEFAULT_ROOT) -> None:
         command = stream["adapter"].get("command")
         if not isinstance(command, list) or not command or not all(isinstance(item, str) for item in command):
             raise ValueError(f"{path}: adapter.command must be a non-empty string array for local_command")
+        if stream["mode"] == "event" and stream["adapter"].get("parse") != "json":
+            raise ValueError(f"{path}: local_command event streams require adapter.parse: json")
 
 
 def validate_provider_tree(root: Path) -> list[Path]:
@@ -432,7 +434,7 @@ def _decode_limited(raw: bytes, limit: int) -> tuple[str, bool]:
     return raw[:limit].decode("utf-8", errors="replace"), truncated
 
 
-def fetch_local_command(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
+def run_local_command(stream: dict, adapter: dict) -> dict:
     command = adapter.get("command")
     if not isinstance(command, list) or not command or not all(isinstance(item, str) for item in command):
         raise ValueError(f"{stream['id']}: local_command adapter.command must be a non-empty string array")
@@ -463,7 +465,7 @@ def fetch_local_command(stream: dict, adapter: dict, stream_uri: str) -> list[di
         expression = adapter.get("transform", {}).get("expression")
         transformed = jmespath_search(expression, parsed_json) if expression else parsed_json
 
-    data = {
+    return {
         "command": command,
         "cwd": cwd,
         "exit_code": completed.returncode,
@@ -476,7 +478,45 @@ def fetch_local_command(stream: dict, adapter: dict, stream_uri: str) -> list[di
         "started_at": started_at,
         "ran_at": ran_at,
     }
-    return [envelope(stream, stream_uri, stable_hash(data), data, ran_at)]
+
+
+def fetch_local_command_events(stream: dict, adapter: dict, stream_uri: str, result: dict) -> list[dict]:
+    if adapter.get("parse") != "json":
+        raise ValueError(f"{stream['id']}: local_command event streams require parse: json")
+
+    items_expression = adapter.get("items_from") or "@"
+    items = jmespath_search(items_expression, result["parsed_json"])
+    if not isinstance(items, list):
+        raise ValueError(f"{stream['id']}: local_command items_from must produce an array")
+
+    transform_expression = adapter.get("transform", {}).get("expression")
+    id_expression = adapter.get("id_from")
+    time_expression = adapter.get("time_from")
+    events = []
+    for item in items:
+        transformed = jmespath_search(transform_expression, item) if transform_expression else item
+        if not isinstance(transformed, dict):
+            raise ValueError(f"{stream['id']}: local_command event transform must produce an object")
+        event_id = jmespath_search(id_expression, item) if id_expression else None
+        if event_id is None:
+            event_id = stable_hash(item)
+        event_time = jmespath_search(time_expression, item) if time_expression else None
+        if event_time is None:
+            event_time = result["ran_at"]
+        events.append(envelope(stream, stream_uri, event_id, transformed, str(event_time) if event_time else None))
+    return events
+
+
+def fetch_local_command(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
+    result = run_local_command(stream, adapter)
+
+    if stream["mode"] == "event":
+        return fetch_local_command_events(stream, adapter, stream_uri, result)
+    if stream["mode"] != "snapshot":
+        raise ValueError(f"{stream['id']}: local_command supports snapshot and event modes")
+
+    data = result
+    return [envelope(stream, stream_uri, stable_hash(data), data, result["ran_at"])]
 
 
 def run_adapter(stream: dict, parameters: dict) -> tuple[str, list[dict]]:

@@ -26,9 +26,10 @@ For local/private sources, prefer read-only snapshots. Provider adapters should 
 
 For `local_command`, use argv arrays only. Do not use shell strings. Only create command providers for commands the operator explicitly requested or approved. Prefer commands that read state and print output; avoid commands that mutate files, cloud resources, accounts, or external services.
 
-Optional JSON parsing for command output:
+Snapshot command with optional JSON parsing:
 
 ```yaml
+mode: snapshot
 adapter:
   kind: local_command
   command: ["example-cli", "status", "--json"]
@@ -38,6 +39,24 @@ adapter:
   transform:
     language: jmespath
     expression: "{title: name, content: status, updated_at: updated_at}"
+```
+
+Event command from JSON items:
+
+```yaml
+mode: event
+adapter:
+  kind: local_command
+  command: ["example-cli", "recent", "--json"]
+  timeout_seconds: 20
+  max_output_bytes: 1048576
+  parse: json
+  items_from: items
+  id_from: id
+  time_from: updated_at
+  transform:
+    language: jmespath
+    expression: "{title: title, content: summary, updated_at: updated_at}"
 ```
 
 Minimal stream template, equivalent to `agentfeeds providers scaffold local_file local/example`:
