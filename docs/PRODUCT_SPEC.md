@@ -345,7 +345,8 @@ Agent Feeds is working if:
 
 Available today:
 
-- Hermes plugin and skill bundle
+- standalone Hermes plugin and skill bundle
+- standalone built-in provider catalog
 - local subscription root at `~/.agentfeeds`
 - compact catalog injection
 - state files as JSON
@@ -365,4 +366,3 @@ High-value next steps:
 - richer provider authoring recipes
 - provider packs for specific personal-agent setups
 - visual or textual demos showing before/after token and response-time improvements
-

@@ -25,9 +25,8 @@ Product spec: https://github.com/verkyyi/agentfeeds/blob/main/docs/PRODUCT_SPEC.
 ## Demo Script
 
 ```bash
-git clone https://github.com/verkyyi/agentfeeds
-cd agentfeeds
-./integrations/hermes/agentfeeds/install.sh
+git clone https://github.com/verkyyi/agentfeeds-hermes-plugin ~/.hermes/plugins-src/agentfeeds-hermes-plugin
+~/.hermes/plugins-src/agentfeeds-hermes-plugin/install.sh
 ```
 
 Then ask Hermes one prompt at a time:
@@ -83,8 +82,9 @@ Body:
 ```text
 Agent Feeds is a local-first ambient context layer for personal agents.
 
-This first release focuses on personal agents, with a Hermes integration included:
-- Hermes plugin and skill bundle
+This first release focuses on personal agents, with a standalone Hermes plugin available separately:
+- Hermes plugin and skill bundle: https://github.com/verkyyi/agentfeeds-hermes-plugin
+- built-in provider catalog: https://github.com/verkyyi/agentfeeds-catalog
 - local subscriptions under ~/.agentfeeds
 - compact catalog injection
 - background fetcher with launchd/cron installer

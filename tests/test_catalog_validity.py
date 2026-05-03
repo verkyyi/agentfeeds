@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-import importlib.util
 import json
 from pathlib import Path
 
@@ -10,27 +7,67 @@ from agentfeeds import fetch
 
 
 ROOT = Path(__file__).resolve().parents[1]
-VALIDATOR = ROOT / "scripts" / "validate-stream.py"
+FIXTURE_CATALOG = ROOT / "tests" / "fixtures" / "catalog"
 
 
-def load_validator():
-    spec = importlib.util.spec_from_file_location("validate_stream", VALIDATOR)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return module
+def test_catalog_cache_updates_from_configured_catalog_dir(tmp_path):
+    fetch.update_catalog_cache(tmp_path)
+
+    index = json.loads((tmp_path / "catalog-cache" / "INDEX.json").read_text(encoding="utf-8"))
+    assert index["stream_count"] == 7
+    assert (tmp_path / "catalog-cache" / "catalog" / "streams" / "local" / "file.yaml").exists()
+    assert (
+        tmp_path
+        / "catalog-cache"
+        / "catalog"
+        / "schemas"
+        / "event-types"
+        / "local.file.v1.json"
+    ).exists()
 
 
-def test_all_streams_validate():
-    validator = load_validator()
-    for path in sorted((ROOT / "catalog" / "streams").glob("**/*.yaml")):
-        validator.validate_stream(path)
+def test_catalog_cache_can_download_remote_catalog(tmp_path, monkeypatch):
+    files = {
+        str(path.relative_to(FIXTURE_CATALOG)): path.read_text(encoding="utf-8")
+        for path in (FIXTURE_CATALOG / "catalog").glob("**/*")
+        if path.is_file()
+    }
+
+    class FakeResponse:
+        def __init__(self, text: str):
+            self.text = text
+
+        def raise_for_status(self):
+            return None
+
+    def fake_get(url: str, **_kwargs):
+        relative_path = url.removeprefix("https://catalog.example/")
+        if relative_path not in files:
+            raise AssertionError(f"unexpected catalog URL: {url}")
+        return FakeResponse(files[relative_path])
+
+    monkeypatch.delenv("AGENTFEEDS_CATALOG_DIR", raising=False)
+    monkeypatch.setenv("AGENTFEEDS_CATALOG_BASE_URL", "https://catalog.example")
+    monkeypatch.setattr(fetch.requests, "get", fake_get)
+
+    fetch.update_catalog_cache(tmp_path)
+
+    assert (tmp_path / "catalog-cache" / "catalog" / "streams" / "calendar" / "ics.yaml").exists()
+    assert (
+        tmp_path
+        / "catalog-cache"
+        / "catalog"
+        / "schemas"
+        / "event-types"
+        / "ical-event.v1.json"
+    ).exists()
 
 
-def test_index_matches_stream_count():
-    index = json.loads((ROOT / "catalog" / "INDEX.json").read_text(encoding="utf-8"))
-    streams = sorted((ROOT / "catalog" / "streams").glob("**/*.yaml"))
-    assert index["stream_count"] == len(streams)
+def test_load_stream_definition_uses_catalog_cache(tmp_path):
+    stream = fetch.load_stream_definition(tmp_path, "local/file")
+
+    assert stream["id"] == "local/file"
+    assert stream["adapter"]["kind"] == "local_file"
 
 
 def test_local_provider_is_discoverable_and_validates(tmp_path):

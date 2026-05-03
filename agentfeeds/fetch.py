@@ -10,7 +10,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
@@ -32,6 +31,7 @@ except ImportError:  # pragma: no cover
 SPEC_VERSION = "0.3"
 AGENTFEEDS_VERSION = "agentfeeds/0.3"
 DEFAULT_ROOT = Path.home() / ".agentfeeds"
+DEFAULT_CATALOG_BASE_URL = "https://raw.githubusercontent.com/verkyyi/agentfeeds-catalog/main"
 REQUEST_TIMEOUT_SECONDS = 20
 COMMAND_TIMEOUT_SECONDS = 20
 COMMAND_MAX_OUTPUT_BYTES = 1024 * 1024
@@ -147,21 +147,94 @@ def provider_schemas_root(root: Path) -> Path:
     return providers_root(root) / "schemas" / "event-types"
 
 
-def builtin_event_schemas_root() -> Path:
-    return repo_root() / "catalog" / "schemas" / "event-types"
+def catalog_cache_root(root: Path) -> Path:
+    return root / "catalog-cache"
+
+
+def cached_catalog_file(root: Path, relative_path: str) -> Path:
+    return catalog_cache_root(root) / relative_path
+
+
+def local_catalog_root() -> Path | None:
+    configured = os.environ.get("AGENTFEEDS_CATALOG_DIR")
+    candidates = []
+    if configured:
+        candidates.append(Path(configured).expanduser())
+    candidates.append(repo_root())
+
+    for candidate in candidates:
+        if (candidate / "catalog" / "INDEX.json").exists():
+            return candidate
+        if candidate.name == "catalog" and (candidate / "INDEX.json").exists():
+            return candidate.parent
+    return None
+
+
+def catalog_base_url() -> str:
+    return os.environ.get("AGENTFEEDS_CATALOG_BASE_URL", DEFAULT_CATALOG_BASE_URL).rstrip("/")
+
+
+def write_text_atomic(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def copy_catalog_cache_from_dir(root: Path, source_root: Path) -> None:
+    cache_root = catalog_cache_root(root)
+    catalog_root = source_root / "catalog"
+    index_text = (catalog_root / "INDEX.json").read_text(encoding="utf-8")
+    write_text_atomic(cache_root / "INDEX.json", index_text)
+    write_text_atomic(cache_root / "catalog" / "INDEX.json", index_text)
+
+    for path in sorted(catalog_root.glob("**/*")):
+        if path.is_file():
+            relative_path = path.relative_to(source_root)
+            write_text_atomic(cache_root / relative_path, path.read_text(encoding="utf-8"))
+
+
+def download_catalog_cache(root: Path) -> None:
+    cache_root = catalog_cache_root(root)
+    base_url = catalog_base_url()
+    index_response = requests.get(f"{base_url}/catalog/INDEX.json", timeout=REQUEST_TIMEOUT_SECONDS)
+    index_response.raise_for_status()
+    index_text = index_response.text
+    index = json.loads(index_text)
+
+    write_text_atomic(cache_root / "INDEX.json", index_text)
+    write_text_atomic(cache_root / "catalog" / "INDEX.json", index_text)
+
+    schema_names = {"stream-definition.v0.3.json", "envelope.v0.3.json"}
+    for stream in index.get("streams", []):
+        relative_path = stream["path"]
+        response = requests.get(f"{base_url}/{relative_path}", timeout=REQUEST_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        stream_text = response.text
+        write_text_atomic(cache_root / relative_path, stream_text)
+        stream_payload = yaml.safe_load(stream_text)
+        schema_names.add(stream_payload["schema_url"].rstrip("/").split("/")[-1])
+
+    for name in sorted(schema_names):
+        if name in {"stream-definition.v0.3.json", "envelope.v0.3.json"}:
+            relative_path = f"catalog/schemas/{name}"
+        else:
+            relative_path = f"catalog/schemas/event-types/{name}"
+        response = requests.get(f"{base_url}/{relative_path}", timeout=REQUEST_TIMEOUT_SECONDS)
+        response.raise_for_status()
+        write_text_atomic(cache_root / relative_path, response.text)
 
 
 def update_catalog_cache(root: Path) -> None:
-    source = repo_root() / "catalog" / "INDEX.json"
-    if not source.exists():
-        raise FileNotFoundError(f"catalog index not found: {source}")
-    target = root / "catalog-cache" / "INDEX.json"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, target)
+    source_root = local_catalog_root()
+    if source_root is not None:
+        copy_catalog_cache_from_dir(root, source_root)
+        return
+    download_catalog_cache(root)
 
 
 def load_catalog_index(root: Path) -> dict:
-    cache = root / "catalog-cache" / "INDEX.json"
+    cache = catalog_cache_root(root) / "INDEX.json"
     if not cache.exists():
         update_catalog_cache(root)
     index = json.loads(cache.read_text(encoding="utf-8"))
@@ -179,11 +252,21 @@ def load_catalog_index(root: Path) -> dict:
 def stream_summary(path: Path, root: Path) -> dict:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     try:
-        rel_path = str(path.relative_to(repo_root()))
+        rel_path = str(path.relative_to(catalog_cache_root(root)))
         source = "builtin"
     except ValueError:
+        try:
+            rel_path = str(path.relative_to(repo_root()))
+            source = "builtin"
+        except ValueError:
+            rel_path = str(path)
+            source = "local"
+    try:
+        path.relative_to(provider_streams_root(root))
         rel_path = str(path)
         source = "local"
+    except ValueError:
+        pass
     return {
         "id": data["id"],
         "title": data["title"],
@@ -199,7 +282,31 @@ def stream_summary(path: Path, root: Path) -> dict:
     }
 
 
-def load_stream_definition(root: Path, stream_id: str) -> dict:
+def stream_definition_schema_path(root: Path) -> Path:
+    candidates = [
+        cached_catalog_file(root, "catalog/schemas/stream-definition.v0.3.json"),
+        repo_root() / "catalog" / "schemas" / "stream-definition.v0.3.json",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    update_catalog_cache(root)
+    cached = cached_catalog_file(root, "catalog/schemas/stream-definition.v0.3.json")
+    if cached.exists():
+        return cached
+    raise FileNotFoundError("stream definition schema not found in catalog cache")
+
+
+def builtin_stream_paths(root: Path):
+    yield from (catalog_cache_root(root) / "catalog" / "streams").glob("**/*.yaml")
+    yield from (repo_root() / "catalog" / "streams").glob("**/*.yaml")
+
+
+def cached_event_schemas_root(root: Path) -> Path:
+    return cached_catalog_file(root, "catalog/schemas/event-types")
+
+
+def load_stream_definition(root: Path, stream_id: str, _refreshed: bool = False) -> dict:
     index = load_catalog_index(root)
     match = next((item for item in index.get("streams", []) if item.get("id") == stream_id), None)
     if not match:
@@ -215,7 +322,7 @@ def load_stream_definition(root: Path, stream_id: str) -> dict:
             candidate_paths.append(root / "catalog-cache" / match["path"])
             candidate_paths.append(providers_root(root) / match["path"])
     candidate_paths.extend(provider_streams_root(root).glob("**/*.yaml"))
-    candidate_paths.extend((repo_root() / "catalog" / "streams").glob("**/*.yaml"))
+    candidate_paths.extend(builtin_stream_paths(root))
 
     for path in candidate_paths:
         if not path.exists():
@@ -223,20 +330,31 @@ def load_stream_definition(root: Path, stream_id: str) -> dict:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         if data.get("id") == stream_id:
             return data
+    if match.get("source") != "local" and not _refreshed:
+        update_catalog_cache(root)
+        return load_stream_definition(root, stream_id, _refreshed=True)
     raise FileNotFoundError(f"stream definition not found for {stream_id}")
 
 
 def schema_path_for_url(root: Path, schema_url: str) -> Path:
     name = schema_url.rstrip("/").split("/")[-1]
-    for path in [provider_schemas_root(root) / name, builtin_event_schemas_root() / name]:
+    for path in [
+        provider_schemas_root(root) / name,
+        cached_event_schemas_root(root) / name,
+        repo_root() / "catalog" / "schemas" / "event-types" / name,
+    ]:
         if path.exists():
             return path
+    update_catalog_cache(root)
+    cached = cached_event_schemas_root(root) / name
+    if cached.exists():
+        return cached
     raise FileNotFoundError(f"referenced schema not found locally: {schema_url}")
 
 
 def validate_stream_file(path: Path, root: Path = DEFAULT_ROOT) -> None:
     stream = yaml.safe_load(path.read_text(encoding="utf-8"))
-    schema = json.loads((repo_root() / "catalog" / "schemas" / "stream-definition.v0.3.json").read_text(encoding="utf-8"))
+    schema = json.loads(stream_definition_schema_path(root).read_text(encoding="utf-8"))
     jsonschema.validate(stream, schema)
 
     schema_path = schema_path_for_url(root, stream["schema_url"])
@@ -262,7 +380,8 @@ def validate_stream_file(path: Path, root: Path = DEFAULT_ROOT) -> None:
 def validate_provider_tree(root: Path) -> list[Path]:
     stream_paths = sorted(provider_streams_root(root).glob("**/*.yaml"))
     seen: dict[str, Path] = {}
-    builtin_ids = {stream["id"] for stream in json.loads((repo_root() / "catalog" / "INDEX.json").read_text(encoding="utf-8")).get("streams", [])}
+    index = load_catalog_index(root)
+    builtin_ids = {stream["id"] for stream in index.get("streams", []) if stream.get("source") != "local"}
     for path in stream_paths:
         validate_stream_file(path, root)
         stream_id = yaml.safe_load(path.read_text(encoding="utf-8"))["id"]

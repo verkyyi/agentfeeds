@@ -2,8 +2,8 @@
 
 **Version:** 0.3-internal
 **Status:** Working draft for reference implementation
-**Audience:** The agent (Hermes, Claude Code, etc.) implementing the bundle and reference fetcher
-**Goal:** Build a working agentskills bundle + catalog + fetcher that gives a personal AI agent ambient awareness of external data streams via local files.
+**Audience:** The agent (Hermes, Claude Code, etc.) implementing the reference fetcher, catalog, and integrations
+**Goal:** Build a working catalog + fetcher that gives a personal AI agent ambient awareness of external data streams via local files.
 
 -----
 
@@ -11,12 +11,11 @@
 
 A repository (working name: `agentfeeds`) containing:
 
-1. **The skills bundle** — markdown files an agent runtime loads to learn the protocol.
 1. **A starter catalog** — YAML stream definitions wrapping existing free APIs.
 1. **A fetcher** — a Python script that reads subscriptions, runs adapters, writes state files.
 1. **An interop spec** — this document, plus the schemas it references.
 
-Users install the bundle. Their agent reads the catalog when asked, subscribes to streams, the fetcher polls (lazily by default, via cron if opted-in), and state files appear in `~/.agentfeeds/state/`. The agent reads those files instead of doing web searches.
+Users install an agent integration, such as the standalone Hermes plugin at `agentfeeds-hermes-plugin`. Their agent reads the catalog when asked, subscribes to streams, the fetcher polls (lazily by default, via cron if opted-in), and state files appear in `~/.agentfeeds/state/`. The agent reads those files instead of doing web searches.
 
 -----
 
@@ -27,43 +26,31 @@ agentfeeds/
 ├── SPEC.md                          # this document
 ├── README.md                        # human-facing intro
 ├── LICENSE                          # MIT
-├── bundle/                          # the agentskills bundle users install
-│   ├── SKILL.md                     # primary skill, always loaded
-│   ├── recipes/
-│   │   ├── subscribe.md             # how the agent subscribes to a stream
-│   │   ├── unsubscribe.md           # how the agent removes a subscription
-│   │   ├── refresh.md               # how the agent refreshes a stream now
-│   │   └── discover.md              # how the agent searches the catalog
-│   └── bin/
-│       ├── agentfeeds-fetch         # fetcher entrypoint (Python)
-│       └── agentfeeds-install-poll  # optional cron/launchd installer
-├── catalog/                         # curated stream definitions
-│   ├── INDEX.json                   # auto-generated, agent-readable catalog of streams
-│   ├── streams/
-│   │   ├── weather/
-│   │   │   ├── openmeteo-current.yaml
-│   │   │   └── nws-alerts.yaml
-│   │   ├── dev/
-│   │   │   ├── github-releases.yaml
-│   │   │   └── hackernews-frontpage.yaml
-│   │   ├── geo/
-│   │   │   └── usgs-earthquakes.yaml
-│   │   └── ...
-│   └── schemas/
-│       ├── envelope.v0.3.json
-│       ├── stream-definition.v0.3.json
-│       └── event-types/
-│           ├── weather.observation.v1.json
-│           ├── github.release.v1.json
-│           └── ...
+├── agentfeeds/                      # Python package and CLI entrypoints
+│   ├── cli.py                       # management CLI
+│   ├── fetch.py                     # reference fetcher
+│   ├── polling_install.py           # optional cron/launchd installer
+│   └── polling_uninstall.py         # optional cron/launchd uninstaller
 ├── tests/
 │   ├── fixtures/                    # recorded API responses for offline tests
 │   ├── test_fetcher.py
 │   ├── test_adapters.py
 │   └── test_catalog_validity.py
 └── scripts/
-    ├── build-index.py               # regenerates catalog/INDEX.json from streams/
-    └── validate-stream.py           # validates a single stream definition
+    └── render_demo_gif.py           # regenerates demo assets
+```
+
+Built-in provider definitions live in the separate `agentfeeds-catalog` repository:
+
+```
+agentfeeds-catalog/
+├── catalog/
+│   ├── INDEX.json
+│   ├── streams/
+│   └── schemas/
+└── scripts/
+    ├── build-index.py
+    └── validate-stream.py
 ```
 
 -----
@@ -87,9 +74,9 @@ agentfeeds/
         └── repos.anthropics.claude-code.releases.json
 ```
 
-The `~/.agentfeeds/` root is created by the `subscribe` recipe on first use. It is the only place the bundle writes to.
+The `~/.agentfeeds/` root is created by the CLI on first use. It is the only place Agent Feeds writes runtime state.
 
-Built-in providers ship in the repo catalog. User-local providers live under `~/.agentfeeds/providers/` and are merged into discovery at runtime. Local provider IDs must not conflict with built-in provider IDs.
+Built-in providers ship in the `agentfeeds-catalog` repo and are cached under `~/.agentfeeds/catalog-cache/`. User-local providers live under `~/.agentfeeds/providers/` and are merged into discovery at runtime. Local provider IDs must not conflict with built-in provider IDs.
 
 -----
 
@@ -258,7 +245,7 @@ When subscribing to a provider with parameters, materialize it into a concrete i
 
 ## 7. Stream Definition Format (catalog entries)
 
-Each file under `catalog/streams/` or `~/.agentfeeds/providers/streams/` is a YAML stream definition.
+Each file under `agentfeeds-catalog/catalog/streams/` or `~/.agentfeeds/providers/streams/` is a YAML stream definition.
 
 ```yaml
 id: weather/openmeteo-current
@@ -325,7 +312,7 @@ Adapter `url`, `headers`, `body`, and `transform` strings support `{param_name}`
 
 ### 7.3 Catalog INDEX.json
 
-`catalog/INDEX.json` is auto-generated by `scripts/build-index.py`. Lightweight, agent-readable, designed to be the file the agent searches when discovering streams.
+`agentfeeds-catalog/catalog/INDEX.json` is auto-generated by the catalog repo's `scripts/build-index.py`. Lightweight, agent-readable, designed to be the file the agent searches when discovering streams.
 
 ```json
 {
@@ -350,7 +337,7 @@ Adapter `url`, `headers`, `body`, and `transform` strings support `{param_name}`
 
 -----
 
-## 8. The Fetcher (`bundle/bin/agentfeeds-fetch`)
+## 8. The Fetcher (`agentfeeds-fetch`)
 
 A Python 3.11+ script. Single file preferred for v0.3. ~300 lines target.
 
@@ -396,13 +383,15 @@ The fetcher is a one-shot script. Polling is achieved by cron/launchd invoking i
 
 -----
 
-## 9. The Bundle (`bundle/SKILL.md` and recipes)
+## 9. Agent Integrations
 
 The primary user experience is agent-orchestrated. The user asks for outcomes in natural language; the agent uses `agentfeeds` and `agentfeeds-fetch` as an internal control plane, then reports results. The CLI exists for agents, scripts, and debugging, not as the normal operator workflow.
 
-### 9.1 SKILL.md (always loaded)
+The Hermes plugin and skill live in the standalone `agentfeeds-hermes-plugin` repository. Built-in provider definitions live in `agentfeeds-catalog`. This core repo owns the protocol, CLI, fetcher, local provider tooling, and tests.
 
-Must teach the agent these behaviors:
+### 9.1 Skill Instructions
+
+Agent-facing integrations should teach these behaviors:
 
 1. **At session start:** Read `~/.agentfeeds/catalog.md` if it exists. Treat the listed streams as available context.
 1. **When user asks about a topic covered by a subscribed stream:** Read the corresponding state file directly. Do not web-search if a non-stale state file covers the question.
@@ -411,7 +400,7 @@ Must teach the agent these behaviors:
 1. **When the user asks what’s available:** Load `recipes/discover.md` to search the catalog.
 1. **When no provider fits:** Offer to draft a provider and validate it before touching the live subscription root.
 
-The SKILL.md should be 80-150 lines. It is always in context, so it must be terse.
+Always-loaded skill instructions should be terse. Put provider authoring, testing, and less-common workflows behind progressively loaded recipes or references.
 
 ### 9.2 Recipes (loaded on demand)
 
@@ -449,7 +438,7 @@ agentfeeds providers validate
 
 -----
 
-## 10. Polling Installer (`bundle/bin/agentfeeds-install-poll`)
+## 10. Polling Installer (`agentfeeds-install-poll`)
 
 Optional. User runs once to enable background polling.
 
@@ -485,9 +474,9 @@ Ship at least these stream definitions in v0.3. Each must have working adapter c
 
 Each must:
 
-- Have a valid YAML definition under `catalog/streams/`.
-- Have a JSON Schema under `catalog/schemas/event-types/`.
-- Pass `scripts/validate-stream.py`.
+- Have a valid YAML definition under `agentfeeds-catalog/catalog/streams/`.
+- Have a JSON Schema under `agentfeeds-catalog/catalog/schemas/event-types/`.
+- Pass the catalog repo's `scripts/validate-stream.py`.
 - Be tested by `tests/test_adapters.py` against a recorded fixture.
 
 -----
@@ -507,13 +496,7 @@ Each must:
 - Each adapter kind (`json_http`, `paginated_json_http`, `rss`, `ical`) tested against recorded fixtures in `tests/fixtures/`.
 - Parameter substitution tested for edge cases (URL-encoded special chars, missing params, etc.).
 
-`tests/test_catalog_validity.py`:
-
-- Every YAML in `catalog/streams/` parses, validates against `stream-definition.v0.3.json`.
-- Every referenced schema URL resolves to a parseable JSON Schema.
-- Every adapter config can be dry-run (config-validated without making network calls).
-
-`scripts/validate-stream.py` is the single-stream version of the catalog validity test, used by contributors and CI.
+`tests/test_catalog_validity.py` covers core catalog-cache loading and local provider conflict behavior. Full built-in provider validation lives in the `agentfeeds-catalog` repo.
 
 -----
 
@@ -526,8 +509,8 @@ Build in this order. Each step depends on the previous one being functional.
 1. **Adapter kinds** — generalize the fetcher to support all four adapter kinds.
 1. **State merging** — implement snapshot, event, and delta merge logic with tests.
 1. **Catalog regeneration** — generate `~/.agentfeeds/catalog.md` from current state files.
-1. **Starter catalog** — write the 8 stream definitions and their schemas, with fixtures.
-1. **Bundle SKILL.md and recipes** — write the agentskills bundle.
+1. **Starter catalog** — write the 8 stream definitions and their schemas in `agentfeeds-catalog`, with fixtures.
+1. **Agent integration instructions** — write/update standalone plugin skills and recipes.
 1. **Polling installer** — optional cron/launchd setup.
 1. **Tests** — fill in coverage to the level described in §12.
 1. **Documentation** — README, contribution guide.

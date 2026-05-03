@@ -10,11 +10,11 @@ Personal agents often start sessions blind: users repeat project context, paste 
 
 ![Agent Feeds interactive session demo](docs/assets/agentfeeds-demo.gif)
 
-Install the Hermes integration:
+Install the standalone Hermes plugin:
 
 ```bash
-git clone https://github.com/verkyyi/agentfeeds ~/.hermes/plugins-src/agentfeeds
-~/.hermes/plugins-src/agentfeeds/integrations/hermes/agentfeeds/install.sh
+git clone https://github.com/verkyyi/agentfeeds-hermes-plugin ~/.hermes/plugins-src/agentfeeds-hermes-plugin
+~/.hermes/plugins-src/agentfeeds-hermes-plugin/install.sh
 ```
 
 Restart Hermes, then try one prompt at a time:
@@ -95,21 +95,17 @@ Hermes should handle the details. You should not need to know provider IDs, subs
 
 ## Install For Hermes
 
-From this checkout:
+Use the standalone Hermes plugin repo:
 
 ```bash
-./integrations/hermes/agentfeeds/install.sh
-```
-
-From GitHub:
-
-```bash
-git clone https://github.com/verkyyi/agentfeeds ~/.hermes/plugins-src/agentfeeds
-~/.hermes/plugins-src/agentfeeds/integrations/hermes/agentfeeds/install.sh
+git clone https://github.com/verkyyi/agentfeeds-hermes-plugin ~/.hermes/plugins-src/agentfeeds-hermes-plugin
+~/.hermes/plugins-src/agentfeeds-hermes-plugin/install.sh
 ```
 
 The installer:
 
+- clones or updates Agent Feeds core under `~/.hermes/plugins-src/agentfeeds-core`
+- clones or updates the built-in provider catalog under `~/.hermes/plugins-src/agentfeeds-catalog`
 - symlinks the Hermes plugin to `~/.hermes/plugins/agentfeeds`
 - symlinks the Hermes skill to `~/.hermes/skills/agentfeeds`
 - installs Agent Feeds command wrappers in `~/.local/bin`
@@ -142,7 +138,7 @@ Full data stays on disk and is read only when relevant.
 
 ## Demo Flow
 
-After installing the Hermes integration, ask Hermes one prompt at a time:
+After installing the Hermes plugin, ask Hermes one prompt at a time:
 
 ```text
 What Agent Feeds providers can I subscribe to?
@@ -177,7 +173,13 @@ Refresh Project notes and summarize it.
 
 ## Built-In Providers
 
-Current built-ins:
+Built-in provider definitions live in the standalone catalog repo:
+
+```text
+https://github.com/verkyyi/agentfeeds-catalog
+```
+
+Current built-ins include:
 
 - `local/file`: read-only snapshot of one local text, Markdown, or JSON file
 - `news/rss-generic`: RSS or Atom feed
@@ -193,6 +195,13 @@ Current built-ins:
 - `space/iss-location`: current ISS location
 
 Catalog entries are providers/templates. Active subscriptions are concrete instances. For example, `news/rss-generic` can become `news/openai-com`, and `local/file` can become `local/project-notes-md`.
+
+Catalog loading can be pointed at a local checkout or alternate raw source:
+
+```bash
+AGENTFEEDS_CATALOG_DIR=~/projects/agentfeeds-catalog agentfeeds-fetch --update-catalog
+AGENTFEEDS_CATALOG_BASE_URL=https://raw.githubusercontent.com/verkyyi/agentfeeds-catalog/main agentfeeds-fetch --update-catalog
+```
 
 ## Background Refresh
 
