@@ -1,63 +1,40 @@
 ---
 name: agentfeeds
-description: Use Agent Feeds for ambient awareness from continuously refreshed local streams under ~/.agentfeeds. Use at session start to set up background refresh and compact stream brief context, and when answering prompts that may be covered by changing local context such as feeds, subscriptions, templates, subscribed stream state, RSS/news/GitHub/calendar/weather, personal sources, or fresh local context before web search or recomputing source data.
+description: Use Agent Feeds for ambient awareness from continuously refreshed local streams under ~/.agentfeeds. Use at session start to install/check background refresh and insert a compact stream brief, and before web search or expensive source-specific queries when a prompt may be covered by changing local context such as RSS/news, GitHub, calendars, weather, local files, personal sources, templates, subscriptions, or subscribed stream state.
 ---
 
 # Agent Feeds
 
 Agent Feeds is a local-first ambient context layer for agents. A background fetcher keeps changing stream state warm on disk so agents can answer from local, inspectable context before re-searching, querying, processing, or asking the user to repeat information.
 
-Use this skill at session start and when the user asks to discover templates, subscribe to a feed/source, inspect Agent Feeds state, answer from subscribed streams, or draft/test a local template. Also use it before web search or expensive source-specific queries when a subscribed stream may already cover the prompt.
+Use this skill at session start, when managing feeds/subscriptions/templates, and before web search or expensive source-specific work if subscribed local state may already cover the prompt.
 
-Requires shell access, Python 3.11+, and either `pip` or `uv` for runtime setup. Network access is needed for setup, remote catalog updates, and public feed templates.
+Requires shell access, Python 3.11+, and either `pip` or `uv` for setup. Network access is needed for setup, remote catalog updates, and public feed templates.
 
-## Runtime Model
+## Command Map
 
-Agent Feeds is a portable Agent Skill with bundled Python scripts. Use the scripts from the skill root:
-
-```bash
-python3 scripts/agentfeeds.py        # management CLI: templates, subscribe, streams, template authoring
-python3 scripts/agentfeeds_fetch.py  # worker CLI: refresh subscriptions, update catalog cache, write state
-```
-
-Runtime state defaults to `~/.agentfeeds/`, but agents should treat the file layout as an implementation detail. Prefer `python3 scripts/agentfeeds.py` for discovery, subscription inspection, state reads, and local template paths. Only inspect files directly when debugging, authoring a local template after scaffolding, or when the CLI is unavailable.
-
-Background refresh is required for normal use. The agent should try to keep it installed and should report clearly if the host cannot support the scheduler.
-
-## Setup
-
-Before doing real work from a fresh checkout, install the Python runtime into a local virtual environment:
+Use the bundled scripts from the skill root:
 
 ```bash
 python3 scripts/setup.py
-```
-
-The setup script installs an editable runtime into `~/.agentfeeds/runtime-venv/`. The script entry points automatically re-exec through that venv when it exists, so subsequent examples can use `python3 scripts/...` directly.
-
-Check availability:
-
-```bash
-python3 scripts/agentfeeds.py --help
-python3 scripts/agentfeeds_fetch.py --help
-```
-
-Ensure background refresh is installed:
-
-```bash
-python3 scripts/agentfeeds.py polling status --json
-python3 scripts/agentfeeds.py polling install
+python3 scripts/agentfeeds.py brief
+python3 scripts/agentfeeds.py search <topic> --json
 python3 scripts/agentfeeds.py streams health --json
+python3 scripts/agentfeeds.py streams read <subscription-id> --limit 20 --json
+python3 scripts/agentfeeds.py templates search <query>
+python3 scripts/agentfeeds.py subscribe <template-id> [key=value ...]
+python3 scripts/agentfeeds_fetch.py --stream <subscription-id>
 ```
 
-If console wrappers are already installed, `agentfeeds` and `agentfeeds-fetch` are acceptable equivalents, but prefer bundled scripts for portability.
+`python3 scripts/agentfeeds.py` is the management CLI. `python3 scripts/agentfeeds_fetch.py` is the refresh worker. Runtime state defaults to `~/.agentfeeds/`; treat the file layout as an implementation detail except when debugging or editing a scaffolded local template.
 
 Vocabulary:
 
 - Template: reusable feed definition. Some templates are ready to subscribe with no parameters; others require parameters.
 - Subscription: configured active instance of a template.
-- Stream: readable refreshed data for an active subscription.
+- Stream: refreshed readable data for an active subscription.
 
-More detailed workflows are available only when needed:
+References to load only when needed:
 
 - Runtime setup details: `references/runtime-setup.md`
 - Template authoring details: `references/template-authoring.md`
@@ -67,89 +44,39 @@ More detailed workflows are available only when needed:
 
 At the start of each session:
 
-1. Ensure runtime setup has been completed. If the bundled scripts fail because dependencies are missing, run `python3 scripts/setup.py`.
-2. Ensure background refresh is installed with `python3 scripts/agentfeeds.py polling status --json`; if it is missing, run `python3 scripts/agentfeeds.py polling install`.
-3. Check stream health with `python3 scripts/agentfeeds.py streams health --json`; report degraded ambient awareness if streams have errors, missing state, or stale state.
+1. If the bundled CLI fails because dependencies are missing, run `python3 scripts/setup.py`.
+2. Check background refresh with `python3 scripts/agentfeeds.py polling status --json`; if missing, run `python3 scripts/agentfeeds.py polling install`.
+3. Check stream health with `python3 scripts/agentfeeds.py streams health --json`.
 4. Generate stable compact context with `python3 scripts/agentfeeds.py brief`.
-5. If the agent framework supports prompt slots, place the exact brief output in the system-level or persistent context slot so stable stream metadata can benefit from model-side prompt caching.
+5. If the host supports prompt slots, place the exact brief output in a system-level or persistent context slot so stable stream metadata can benefit from model-side prompt caching.
 
-The default brief intentionally avoids volatile timestamps. Use `python3 scripts/agentfeeds.py brief --include-freshness` only when the user asks about freshness or debugging.
+The default brief avoids volatile timestamps. Use `python3 scripts/agentfeeds.py brief --include-freshness` only for freshness/debugging questions.
 
-Use `python3 scripts/agentfeeds.py search <topic> --json` to find relevant local state snippets during a task. Use `python3 scripts/agentfeeds.py streams list` or `python3 scripts/agentfeeds.py streams search <topic>` only when you need stream metadata. Do not read raw state files during normal operation.
+If health reports errors, missing state, or stale state, continue with available local context but tell the user ambient awareness is degraded when it affects the answer.
 
-## Discover Templates
+## Answering Flow
 
-When the user asks what Agent Feeds can subscribe to:
+When a user prompt may be covered by subscribed changing context:
 
-```bash
-python3 scripts/agentfeeds.py templates search <query>
-python3 scripts/agentfeeds.py templates show <template-id>
-```
+1. Search local state first: `python3 scripts/agentfeeds.py search <topic> --json`.
+2. If matches are non-stale and answer the prompt, read the matching stream with `python3 scripts/agentfeeds.py streams read <subscription-id> --limit 20 --json` and answer from local state.
+3. If a matching stream is stale and freshness matters, refresh it with `python3 scripts/agentfeeds_fetch.py --stream <subscription-id>`, then search/read again.
+4. If health shows a fetch error or missing state, explain the degraded source and ask for reconfiguration only when needed.
+5. Use web search or source-specific external tools only when local streams do not cover the prompt, are stale and cannot refresh, or the user explicitly asks for outside/current web information beyond subscribed data.
 
-If the catalog cache is missing or stale, run:
+Use `streams search` only for stream metadata discovery. Use top-level `search` for content snippets.
 
-```bash
-python3 scripts/agentfeeds_fetch.py --update-catalog --regenerate-catalog
-```
-
-Then retry discovery.
-
-## Subscribe
+## Subscribe And Manage
 
 When the user asks to subscribe to a source:
 
-1. Identify the template with `python3 scripts/agentfeeds.py templates search <query>`.
-2. Collect required parameters from the template match.
-3. Subscribe with the management CLI.
+1. Search built-ins first with `python3 scripts/agentfeeds.py templates search <query>`.
+2. Inspect likely matches with `python3 scripts/agentfeeds.py templates show <template-id> --json`.
+3. Prefer a built-in template when it fits the source shape and auth model.
+4. Collect only required parameters, then subscribe with `python3 scripts/agentfeeds.py subscribe <template-id> [key=value ...]`.
+5. Confirm with `python3 scripts/agentfeeds.py streams health --json` and, if useful, one stream read.
 
-Examples:
-
-```bash
-python3 scripts/agentfeeds.py subscribe dev/hackernews-frontpage
-python3 scripts/agentfeeds.py subscribe news/rss-generic url=https://example.com/rss.xml --title "Example RSS"
-python3 scripts/agentfeeds.py subscribe local/file path=~/notes/project.md --title "Project notes"
-```
-
-After subscribing, read or refresh the resulting state before summarizing what changed:
-
-```bash
-python3 scripts/agentfeeds.py streams list
-```
-
-## Answer From Local State
-
-When the user asks about a topic covered by a subscribed stream:
-
-1. Search existing local state with `python3 scripts/agentfeeds.py search <topic> --json`.
-2. If needed, inspect metadata with `python3 scripts/agentfeeds.py streams show <subscription-id> --json`.
-3. If stale and freshness matters, refresh the stream before answering.
-4. Read compact data with `python3 scripts/agentfeeds.py streams read <subscription-id> --limit 20 --json`.
-
-When a stream appears broken, run:
-
-```bash
-python3 scripts/agentfeeds.py streams health --json
-```
-
-Use health output to distinguish missing state, stale state, and fetch errors before asking the user to retry or reconfigure a subscription.
-
-Refresh one subscription:
-
-```bash
-python3 scripts/agentfeeds_fetch.py --stream <subscription-id>
-```
-
-Refresh all subscriptions only when the user asks for a full refresh:
-
-```bash
-python3 scripts/agentfeeds_fetch.py --all
-```
-
-If non-stale stream data covers the question, answer from it and avoid web search unless the user explicitly asks for outside/current web information beyond the subscribed data.
-
-## Unsubscribe
-
-When the user asks to remove a subscription:
+For unsubscribe:
 
 ```bash
 python3 scripts/agentfeeds.py streams list
@@ -158,32 +85,34 @@ python3 scripts/agentfeeds.py unsubscribe <subscription-id>
 
 If the user names a template instead of a concrete subscription, list matching active streams and ask which one to remove.
 
-## Local Template Authoring
+## Template Strategy
+
+Balance built-in templates and local authoring this way:
+
+- Use built-in templates for common source classes, stable public APIs, shared schemas, and anything many operators would reuse.
+- Use parameterized built-ins for source families: RSS/Atom URLs, GitHub repos, iCalendar URLs, weather coordinates, public JSON APIs.
+- Use local templates for private files, private dashboards, one-off APIs, local tools, experimental sources, and operator-specific commands.
+- Do not author a local template until built-ins have been checked and no suitable template fits.
+- If a local template proves broadly useful, suggest upstreaming it to the catalog rather than keeping many near-duplicate local templates.
+- Prefer local/private read-only sources before suggesting public feeds when the user wants personal context.
 
 When no built-in template fits:
 
-1. Run `python3 scripts/agentfeeds.py templates adapters`.
-2. Draft a local template with `python3 scripts/agentfeeds.py templates scaffold <adapter-kind> <template-id>`.
-3. Edit the generated template YAML at the path reported by the scaffold command or under `python3 scripts/agentfeeds.py templates path`.
-4. Validate and test before subscribing.
-
-Commands:
-
 ```bash
-python3 scripts/agentfeeds.py templates path
-python3 scripts/agentfeeds.py templates scaffold local_file personal/notes
+python3 scripts/agentfeeds.py templates adapters
+python3 scripts/agentfeeds.py templates scaffold <adapter-kind> <template-id>
 python3 scripts/agentfeeds.py templates validate
 python3 scripts/agentfeeds.py templates test <template-id> key=value
 ```
 
-For `local_command` templates, use argv arrays only. Only create command templates for explicitly requested or approved read-only commands. Avoid commands that mutate files, cloud resources, accounts, or external services.
+Read `references/template-authoring.md` before editing scaffolded template YAML.
 
-For adapter-specific details, read `references/template-authoring.md`.
+For `local_command` templates, use argv arrays only. Only create command templates for explicitly requested or approved read-only commands. Avoid commands that mutate files, cloud resources, accounts, or external services.
 
 ## Safety Rules
 
-- Use `python3 scripts/agentfeeds.py subscribe` and `python3 scripts/agentfeeds.py unsubscribe` for subscription changes.
-- Use `python3 scripts/agentfeeds_fetch.py` or `python3 scripts/agentfeeds.py refresh` for refreshes.
-- Do not hand-write state files.
+- Use `subscribe` and `unsubscribe` for subscription changes.
+- Use `agentfeeds_fetch.py` or `agentfeeds.py refresh` for refreshes.
+- Do not hand-write state or status files.
 - Do not include secrets in template YAML.
-- Prefer local/private templates for personal-agent context before suggesting public feeds.
+- Treat Agent Feeds as warm changing context, not durable memory, semantic search, or a data warehouse.
