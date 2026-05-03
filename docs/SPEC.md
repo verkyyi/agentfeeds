@@ -40,13 +40,11 @@ agentfeeds/
 │   └── polling/
 │       ├── install.py               # optional cron/launchd installer
 │       └── uninstall.py             # optional cron/launchd uninstaller
-├── tests/
-│   ├── fixtures/                    # recorded API responses for offline tests
-│   ├── test_fetcher.py
-│   ├── test_adapters.py
-│   └── test_catalog_validity.py
-└── scripts/
-    └── render_demo_gif.py           # regenerates demo assets
+└── tests/
+    ├── fixtures/                    # recorded API responses for offline tests
+    ├── test_fetcher.py
+    ├── test_adapters.py
+    └── test_catalog_validity.py
 ```
 
 Built-in provider definitions live in the separate `agentfeeds-catalog` repository:
