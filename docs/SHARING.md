@@ -1,10 +1,10 @@
 # Sharing Agent Feeds
 
-Use this when introducing Agent Feeds to personal-agent builders, Hermes operators, or people working on local context systems.
+Use this when introducing Agent Feeds to personal-agent builders, operators, or people working on local context systems.
 
 ## Short Pitch
 
-Agent Feeds is a local-first ambient context layer for personal agents like Hermes.
+Agent Feeds is a local-first ambient context layer for compatible personal agents.
 
 It lets an agent subscribe to local or public streams, keep JSON stream state fresh in the background, and inspect only compact stream data when relevant before using web search.
 
@@ -14,7 +14,7 @@ Agent Feeds is not memory. It is a refreshable, inspectable file layer for curre
 
 I have been building Agent Feeds, a local-first subscription layer for personal agents.
 
-The idea is simple: personal agents need fresh awareness of local and private state, but that state should not be dumped into every prompt. Agent Feeds keeps detailed data on disk, exposes compact stream metadata to Hermes, and lets the agent read relevant streams through the CLI only when needed.
+The idea is simple: personal agents need fresh awareness of local and private state, but that state should not be dumped into every prompt. Agent Feeds keeps detailed data on disk, exposes compact stream metadata, and lets the agent read relevant streams through the CLI only when needed.
 
 Current templates include local files, RSS/Atom, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and argv-only local commands. Some templates are ready to subscribe as-is; others take parameters. Local commands can produce either a current snapshot or JSON-derived events.
 
@@ -29,7 +29,7 @@ git clone https://github.com/verkyyi/agentfeeds-hermes-plugin ~/.hermes/plugins-
 ~/.hermes/plugins-src/agentfeeds-hermes-plugin/install.sh
 ```
 
-Then ask Hermes one prompt at a time:
+Then ask your agent one prompt at a time:
 
 ```text
 What Agent Feeds templates can I subscribe to?
@@ -65,6 +65,7 @@ Template authoring smoke test:
 ```bash
 python3 scripts/agentfeeds.py templates adapters
 python3 scripts/agentfeeds.py templates scaffold local_command personal/status
+python3 scripts/agentfeeds.py templates approve-command personal/status
 python3 scripts/agentfeeds.py templates validate
 python3 scripts/agentfeeds.py templates test personal/status --json
 ```
@@ -90,7 +91,7 @@ This first release focuses on personal agents, with a standalone Hermes plugin a
 - background fetcher with launchd/cron installer
 - built-in templates for local files, RSS, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, earthquakes, and ISS location
 - local template authoring tools
-- argv-only local_command adapter for snapshots and JSON-derived event streams
+- approved argv-only local_command adapter for snapshots and JSON-derived event streams
 - template dry-run testing with python3 scripts/agentfeeds.py templates test
 
 The core design is intentionally file-based: detailed state stays in JSON files on disk, and the agent reads it only when relevant.
@@ -100,7 +101,7 @@ Agent Feeds is not long-term memory, a vector database, a hosted sync service, o
 
 ## Suggested Audiences
 
-- Hermes and OpenClaw operators
+- personal-agent operators
 - personal-agent builders
 - local-first AI tooling communities
 - people building agent context, memory, or awareness systems

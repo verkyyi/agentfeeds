@@ -57,7 +57,7 @@ def line_color(line: str) -> str:
     stripped = line.strip()
     if stripped.startswith("User:"):
         return GREEN
-    if stripped.startswith("Hermes:"):
+    if stripped.startswith("Agent:"):
         return YELLOW
     if stripped.startswith("<agentfeeds>") or stripped.startswith("</agentfeeds>"):
         return CYAN
@@ -91,7 +91,7 @@ def frame(title: str, subtitle: str, body: str, highlight: str = "") -> Image.Im
     y = 222
     for line in wrap_lines(body):
         color = line_color(line)
-        active_font = MONO if line.strip().startswith(("User:", "Hermes:", "<", "</")) or line.strip().startswith("-") else SMALL
+        active_font = MONO if line.strip().startswith(("User:", "Agent:", "<", "</")) or line.strip().startswith("-") else SMALL
         d.text((84, y), line, fill=color, font=active_font)
         y += 27 if active_font == MONO else 24
 
@@ -103,51 +103,51 @@ def frame(title: str, subtitle: str, body: str, highlight: str = "") -> Image.Im
 
 SCENES = [
     (
-        "Agent Feeds in a Hermes session",
+        "Agent Feeds in an agent session",
         "The demo is the agent experience, not the CLI.",
-        "A new Hermes session can inspect a compact list of available local streams.\n\nThe user just asks normal questions. Hermes chooses when to run python3 scripts/agentfeeds.py streams read before web search.",
+        "A new agent session can inspect a compact list of available local streams.\n\nThe user just asks normal questions. The agent chooses when to run python3 scripts/agentfeeds.py streams read before web search.",
         "Agents need feeds: fresh local state, read only when relevant.",
         3600,
     ),
     (
         "Session context injected once",
         "Only a compact map enters the prompt; detailed state stays on disk.",
-        "python3 scripts/agentfeeds.py streams list\n- weather/santa-clara-current: Santa Clara current weather\n- dev/hackernews-frontpage: Hacker News front page\n- finance/quote-btc: BTC quote\n- news/openai-com: OpenAI News\n- ops/hermes-gateway-health: Hermes gateway health\n\nWhen relevant, run python3 scripts/agentfeeds.py streams read <subscription-id> --json before web search.",
+        "python3 scripts/agentfeeds.py streams list\n- weather/santa-clara-current: Santa Clara current weather\n- dev/hackernews-frontpage: Hacker News front page\n- finance/quote-btc: BTC quote\n- news/openai-com: OpenAI News\n- ops/gateway-health: Gateway health\n\nWhen relevant, run python3 scripts/agentfeeds.py streams read <subscription-id> --json before web search.",
         "Compact metadata in prompt. Bulky JSON remains local.",
         5200,
     ),
     (
         "Use case: current news without web search",
-        "The user asks naturally; Hermes sees a matching active stream.",
-        "User: What is on Hacker News right now?\n\nHermes: I see a fresh Hacker News front page stream. I’ll run python3 scripts/agentfeeds.py streams read first instead of searching the web.\n\nHermes: Here are the top stories from the local HN snapshot, with scores and links.",
+        "The user asks naturally; the agent sees a matching active stream.",
+        "User: What is on Hacker News right now?\n\nAgent: I see a fresh Hacker News front page stream. I’ll run python3 scripts/agentfeeds.py streams read first instead of searching the web.\n\nAgent: Here are the top stories from the local HN snapshot, with scores and links.",
         "Fresh answers from local state.",
         4300,
     ),
     (
         "Use case: personal ops awareness",
         "Streams can cover private/local status, not just public feeds.",
-        "User: Is my Hermes gateway healthy?\n\nHermes: There is an ops/hermes-gateway-health stream. I’ll inspect it with python3 scripts/agentfeeds.py streams read.\n\nHermes: Gateway is healthy; latest check is fresh. If it were stale, I would refresh that stream before answering.",
+        "User: Is my gateway healthy?\n\nAgent: There is an ops/gateway-health stream. I’ll inspect it with python3 scripts/agentfeeds.py streams read.\n\nAgent: Gateway is healthy; latest check is fresh. If it were stale, I would refresh that stream before answering.",
         "The agent can monitor local/private systems conversationally.",
         4300,
     ),
     (
         "Use case: market and weather snapshots",
         "Snapshot streams answer quick factual questions without repeated setup.",
-        "User: What are BTC and MSFT doing, and what is Santa Clara weather?\n\nHermes: I see subscribed quote and weather streams. I’ll read the relevant local snapshots and summarize them together.\n\nHermes: Answer is grounded in timestamped Agent Feeds state, not chat memory.",
+        "User: What are BTC and MSFT doing, and what is Santa Clara weather?\n\nAgent: I see subscribed quote and weather streams. I’ll read the relevant local snapshots and summarize them together.\n\nAgent: Answer is grounded in timestamped Agent Feeds state, not chat memory.",
         "Feeds are timestamped current context, not durable memory.",
         4500,
     ),
     (
         "Use case: followed AI sources",
         "RSS/release streams keep the agent aware of sources the operator cares about.",
-        "User: Anything new from OpenAI, Anthropic, or Hermes Agent releases?\n\nHermes: I see active streams for OpenAI News, Anthropic RSS, and NousResearch/hermes-agent releases. I’ll read those local event files and report what changed.\n\nHermes: No need to paste URLs or restate which sources matter.",
+        "User: Anything new from OpenAI, Anthropic, or my watched agent releases?\n\nAgent: I see active streams for OpenAI News, Anthropic RSS, and watched release feeds. I’ll read those local event files and report what changed.\n\nAgent: No need to paste URLs or restate which sources matter.",
         "The session starts already oriented around your subscribed world.",
         5000,
     ),
     (
         "Why this matters",
         "Agent Feeds is the ambient context layer between memory and tools.",
-        "Memory: durable facts about the user.\nFeeds: fresh, timestamped state around the user.\nTools: actions the agent can run when needed.\n\nAgent Feeds lets Hermes answer from local/private state first, while keeping the data path inspectable through the streams CLI.",
+        "Memory: durable facts about the user.\nFeeds: fresh, timestamped state around the user.\nTools: actions the agent can run when needed.\n\nAgent Feeds lets the agent answer from local/private state first, while keeping the data path inspectable through the streams CLI.",
         "Not memory. Not prompt stuffing. Fresh inspectable feeds.",
         5000,
     ),

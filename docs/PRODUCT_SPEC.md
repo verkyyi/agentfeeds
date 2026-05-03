@@ -2,11 +2,11 @@
 
 ## Summary
 
-Agent Feeds is a local-first ambient context layer for Hermes and personal agents.
+Agent Feeds is a local-first ambient context layer for compatible personal agents.
 
-If Agent Skills teach an agent how to act, Agent Feeds help the agent stay aware of what is currently happening around it. It gives Hermes a compact map of subscribed local streams, while detailed state stays in inspectable JSON files on disk.
+If Agent Skills teach an agent how to act, Agent Feeds help the agent stay aware of what is currently happening around it. It gives the agent a compact map of subscribed local streams, while detailed state stays in inspectable JSON files on disk.
 
-The product goal is simple: make a new or ongoing Hermes session useful faster, with less repeated setup, fewer tokens spent carrying bulky context, and less need to search or refetch information that is already available locally.
+The product goal is simple: make a new or ongoing agent session useful faster, with less repeated setup, fewer tokens spent carrying bulky context, and less need to search or refetch information that is already available locally.
 
 ## Problem
 
@@ -25,10 +25,10 @@ Without a local ambient layer, users and agents fall into repetitive patterns:
 - The user re-explains the same context across conversations.
 - The agent re-runs commands or searches the web for information that could already be cached.
 - Large private context gets pasted into prompts.
-- New Hermes sessions need manual onboarding before they become useful.
+- New agent sessions need manual onboarding before they become useful.
 - Freshness is unclear because context is mixed into chat history instead of backed by timestamped state.
 
-Agent Feeds exists to move this recurring context into a small local substrate that Hermes can inspect when needed.
+Agent Feeds exists to move this recurring context into a small local substrate that compatible agents can inspect when needed.
 
 ## Non-Goals
 
@@ -38,7 +38,7 @@ Agent Feeds is not intended to be:
 - a vector database
 - a full ETL platform
 - a hosted sync service
-- a replacement for Hermes skills
+- a replacement for agent skills
 - a replacement for web search when local state does not cover the question
 
 It is a refreshable local state layer for current context.
@@ -47,7 +47,7 @@ It is a refreshable local state layer for current context.
 
 Primary users:
 
-- Hermes operators who use Hermes as a personal agent.
+- Operators who use compatible personal agents.
 - Users who want their agent to stay aware of local/private state.
 - Builders creating custom feed templates for their own workflows.
 
@@ -64,11 +64,11 @@ The user's active subscriptions and state live under `~/.agentfeeds`. Detailed d
 
 ### Compact By Default
 
-Hermes should not carry every subscribed data source in every prompt. The injected context should come from `python3 scripts/agentfeeds.py brief`: a compact, stable list of available streams designed for system-level prompt/context slots and prompt caching. The agent reads detailed stream data through the CLI only when relevant.
+The agent should not carry every subscribed data source in every prompt. The injected context should come from `python3 scripts/agentfeeds.py brief`: a compact, stable list of available streams designed for system-level prompt/context slots and prompt caching. The agent reads detailed stream data through the CLI only when relevant.
 
 ### Agent-Orchestrated
 
-The expected UX is conversational. Users should be able to ask Hermes to subscribe, refresh, inspect, or draft templates without knowing CLI flags.
+The expected UX is conversational. Users should be able to ask the agent to subscribe, refresh, inspect, or draft templates without knowing CLI flags.
 
 ### Inspectable
 
@@ -76,15 +76,15 @@ Everything important is plain files: subscription YAML, catalog Markdown, templa
 
 ### Fast To Re-Onboard
 
-A new Hermes session should quickly learn what local streams exist by reading compact metadata, then answer from already-refreshed state when possible.
+A new agent session should quickly learn what local streams exist by reading compact metadata, then answer from already-refreshed state when possible.
 
 ### Warm By Default
 
-Background refresh is expected for normal use. The agent should try to verify or install polling at session start, and should report degraded ambient awareness when the host scheduler is unavailable.
+Background refresh is required for normal ambient use. The agent should try to verify or install polling at session start, and should report degraded ambient awareness when the host scheduler is unavailable.
 
 ### Extensible By Operators
 
-Operators should be able to add private/local sources without waiting for upstream support. Hermes can draft template YAML and test it before installing it into live subscriptions.
+Operators should be able to add private/local sources without waiting for upstream support. The agent can draft template YAML and test it before installing it into live subscriptions.
 
 ## Core Concepts
 
@@ -113,13 +113,13 @@ Templates are for discovery. Subscriptions are active context.
 
 ### Stream Data
 
-Stream data is the detailed JSON payload that Hermes reads when the user asks a related question.
+Stream data is the detailed JSON payload that the agent reads when the user asks a related question.
 
 Agents should read it through `python3 scripts/agentfeeds.py streams read <subscription-id> --json`. The underlying state files remain timestamped, structured, and inspectable on disk for debugging.
 
 ### Active Stream Map
 
-`python3 scripts/agentfeeds.py streams list` and `python3 scripts/agentfeeds.py streams search` provide the compact active-stream map. Hermes uses that map to locate relevant subscribed context without loading all data into the prompt.
+`python3 scripts/agentfeeds.py streams list` and `python3 scripts/agentfeeds.py streams search` provide the compact active-stream map. The agent uses that map to locate relevant subscribed context without loading all data into the prompt.
 
 `python3 scripts/agentfeeds.py brief` provides the stable session-start prompt surface. By default it avoids timestamps and volatile freshness fields so repeated sessions can benefit from model-side prompt caching.
 
@@ -141,7 +141,7 @@ User asks:
 What is on Hacker News right now?
 ```
 
-Hermes checks active Agent Feeds streams, sees a fresh Hacker News subscription, reads the stream through the CLI, and answers without web search.
+The agent checks active Agent Feeds streams, sees a fresh Hacker News subscription, reads the stream through the CLI, and answers without web search.
 
 Benefit:
 
@@ -157,7 +157,7 @@ User asks:
 Subscribe my project notes at ~/notes/project.md as Project notes.
 ```
 
-Hermes subscribes through the local file template. Future sessions can see that "Project notes" exists and read the stream through the CLI when relevant.
+The agent subscribes through the local file template. Future sessions can see that "Project notes" exists and read the stream through the CLI when relevant.
 
 Benefit:
 
@@ -173,7 +173,7 @@ User asks:
 Subscribe to open issues and PRs for NousResearch/hermes-agent.
 ```
 
-Hermes creates concrete subscriptions for GitHub issues and PRs. Background refresh keeps them warm.
+The agent creates concrete subscriptions for GitHub issues and PRs. Background refresh keeps them warm.
 
 Benefit:
 
@@ -185,7 +185,7 @@ Benefit:
 
 User subscribes to an ICS calendar or RSS feed.
 
-Hermes can later answer one prompt at a time:
+The agent can later answer one prompt at a time:
 
 ```text
 What is coming up on this calendar?
@@ -208,7 +208,7 @@ User asks:
 Can Agent Feeds subscribe to my local task database?
 ```
 
-If no template exists, Hermes can draft a `local_command` template that runs an operator-approved read-only command. The command can output one snapshot or a JSON list of events.
+If no template exists, the agent can draft a `local_command` template that runs an operator-approved read-only command. The command can output one snapshot or a JSON list of events.
 
 Benefit:
 
@@ -216,9 +216,9 @@ Benefit:
 - commands are explicit argv arrays, not shell strings
 - template testing can happen before live subscription
 
-### 6. New Hermes Session Onboarding
+### 6. New Agent Session Onboarding
 
-A new Hermes conversation starts.
+A new agent conversation starts.
 
 The plugin injects compact metadata:
 
@@ -228,7 +228,7 @@ Available local streams:
 - dev/hackernews-frontpage: Hacker News front page
 ```
 
-Hermes now knows what local context exists without loading every state file.
+The agent now knows what local context exists without loading every state file.
 
 Benefit:
 
@@ -238,7 +238,7 @@ Benefit:
 
 ## User Experience
 
-The preferred interface is natural language through Hermes. Each example is meant to be used as a single message:
+The preferred interface is natural language through the agent. Each example is meant to be used as a single message:
 
 ```text
 What Agent Feeds templates can I subscribe to?
@@ -281,7 +281,7 @@ Fresh local state can answer many questions immediately.
 
 Only compact stream metadata is injected. Large data stays on disk until relevant.
 
-### Easier Hermes Onboarding
+### Easier Agent Onboarding
 
 Subscriptions and state survive across sessions. A new conversation can discover existing streams quickly.
 
@@ -309,16 +309,16 @@ Every layer is readable for debugging:
 
 ## Why Not Just Use Agent Skills?
 
-Agent Skills are procedural. They teach Hermes how to do things.
+Agent Skills are procedural. They teach the agent how to do things.
 
-Agent Feeds are ambient. They tell Hermes what local streams exist and where to read their current state.
+Agent Feeds are ambient. They tell the agent what local streams exist and where to read their current state.
 
 They are complementary:
 
 - Skills: "How do I subscribe, refresh, or author a template?"
 - Feeds: "What subscribed context is available right now?"
 
-Together they let Hermes both act and stay aware.
+Together they let the agent both act and stay aware.
 
 ## Why Not Put Everything In The Prompt?
 
@@ -344,7 +344,7 @@ Web search is useful when the local state does not cover the question. But for s
 
 Agent Feeds is working if:
 
-- Hermes can answer subscribed-context questions without the user re-explaining setup.
+- The agent can answer subscribed-context questions without the user re-explaining setup.
 - New sessions quickly discover existing local streams.
 - Users see faster answers for refreshed streams.
 - Users spend fewer tokens carrying bulky context.
@@ -355,7 +355,7 @@ Agent Feeds is working if:
 
 Available today:
 
-- standalone Hermes plugin and skill bundle
+- standalone optional Hermes plugin and portable skill bundle
 - standalone built-in template catalog
 - local subscription root at `~/.agentfeeds`
 - compact catalog injection
@@ -371,7 +371,7 @@ Available today:
 High-value next steps:
 
 - more personal/private built-in templates
-- first-class examples for common Hermes operator workflows
+- first-class examples for common operator workflows
 - stronger local-command safety metadata
 - richer template authoring recipes
 - template packs for specific personal-agent setups

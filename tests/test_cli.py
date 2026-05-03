@@ -214,7 +214,7 @@ def test_cli_brief_outputs_compact_stable_prompt_context(tmp_path, capsys):
     out = capsys.readouterr().out
     assert out.startswith("<agentfeeds>\nAvailable local streams:")
     assert "- local/project-notes-md: Project Notes.md" in out
-    assert "Background refresh is expected" in out
+    assert "Background refresh is expected" not in out
     assert "last_updated" not in out
     assert "updated=" not in out
 
@@ -514,6 +514,17 @@ def test_cli_template_test_supports_event_command_without_items_from(tmp_path, c
         ),
         encoding="utf-8",
     )
+
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "templates",
+        "approve-command",
+        "personal/items",
+        "--json",
+    ]) == 0
+    approval = json.loads(capsys.readouterr().out)
+    assert approval["template"] == "personal/items"
 
     assert cli.main([
         "--root",

@@ -72,20 +72,24 @@ agentfeeds-catalog/
 ├── catalog.md                       # inspection/fallback active-stream metadata
 ├── catalog-cache/                   # local cache of the public catalog (refreshed weekly)
 │   └── INDEX.json
+├── approvals/
+│   └── local-command/               # approved local_command command digests
+├── status/
+│   └── subscriptions/               # persisted fetch health
 ├── templates/                       # user-local template pack
 │   ├── streams/                     # custom template YAML
 │   └── schemas/
 │       └── event-types/             # custom event schemas
 └── state/                           # state files, one per subscription
     ├── weather.gov/
-    │   └── forecast.lat=37.33,lon=-121.89.json
+    │   └── forecast.lat-37.33-lon--121.89.<hash>.json
     └── github.com/
         └── repos.anthropics.claude-code.releases.json
 ```
 
 The `~/.agentfeeds/` root is created by the CLI on first use. It is the only place Agent Feeds writes runtime state. Agent integrations should treat this layout as an implementation detail and prefer CLI commands for normal operation. Paths may be surfaced for debugging and template authoring, but they should not be required ambient context.
 
-Built-in templates ship in the `agentfeeds-catalog` repo and are cached under `~/.agentfeeds/catalog-cache/`. User-local templates live under `~/.agentfeeds/templates/` and are merged into discovery at runtime. Local template IDs must not conflict with built-in template IDs.
+Built-in templates ship as a frozen catalog snapshot in the skill bundle and are also maintained in the standalone `agentfeeds-catalog` repo. Updated catalog files are cached under `~/.agentfeeds/catalog-cache/`. User-local templates live under `~/.agentfeeds/templates/` and are merged into discovery at runtime. Local template IDs must not conflict with built-in template IDs.
 
 -----
 
@@ -164,7 +168,7 @@ Given stream URI `feed://<host>/<path>[?<query>]`:
 
 Examples:
 
-- `feed://weather.gov/forecast?lat=37.33&lon=-121.89` → `state/weather.gov/forecast.lat=37.33,lon=-121.89.json`
+- `feed://weather.gov/forecast?lat=37.33&lon=-121.89` → `state/weather.gov/forecast.lat-37.33-lon--121.89.<hash>.json`
 - `feed://github.com/repos/anthropics/claude-code/releases` → `state/github.com/repos.anthropics.claude-code.releases.json`
 - `feed://earthquake.usgs.gov/all/hour` → `state/earthquake.usgs.gov/all.hour.json`
 
@@ -211,9 +215,6 @@ The session-start prompt surface is `python3 scripts/agentfeeds.py brief`. Its d
 Available local streams:
 - local/project-notes-md: Project notes
 - dev/hackernews-frontpage: Hacker News front page
-
-Background refresh is expected. When relevant, search streams and read matching local state before web search or recomputing source data.
-Use `python3 scripts/agentfeeds.py search <topic> --json` and `python3 scripts/agentfeeds.py streams read <subscription-id> --json`.
 </agentfeeds>
 ```
 
@@ -399,14 +400,14 @@ python3 scripts/agentfeeds_fetch.py --update-catalog       # refresh ~/.agentfee
 ### 8.2 Behavior
 
 1. Load `~/.agentfeeds/subscriptions.yaml`.
-1. Load `~/.agentfeeds/catalog-cache/INDEX.json` (or remote if cache is missing).
+1. Load `~/.agentfeeds/catalog-cache/INDEX.json`, the bundled catalog snapshot, or the remote catalog in that order.
 1. For each subscription:
 - Resolve the stream definition by the subscription's `template` field.
 - Substitute parameters into the adapter config.
 - Skip if not stale (unless `--all`).
 - Run the adapter, get one or more envelopes.
 - Apply subscription `filter` if set.
-- Validate against schema if `AGENTFEEDS_VALIDATE=1`.
+- Validate against schema by default. Set `AGENTFEEDS_VALIDATE=0` only for controlled debugging.
 - Compute the state file path (§4.1).
 - Merge with existing state per `mode` (§4):
   - `snapshot`: replace.
@@ -476,11 +477,12 @@ Template authoring helpers:
 ```
 python3 scripts/agentfeeds.py templates adapters
 python3 scripts/agentfeeds.py templates scaffold <adapter-kind> <template-id>
+python3 scripts/agentfeeds.py templates approve-command <template-id> key=value
 python3 scripts/agentfeeds.py templates test <template-id> key=value
 python3 scripts/agentfeeds.py templates validate
 ```
 
-`local_command` is argv-only and intended for explicitly approved read commands. In `snapshot` mode it captures stdout/stderr with a timeout and output cap, and may parse stdout as JSON before applying a JMESPath transform. In `event` mode it requires `parse: json`, selects an item array with `items_from`, optionally uses `id_from` and `time_from`, and applies the transform to each item.
+`local_command` is argv-only and intended for explicitly approved read commands. The fetcher refuses to execute a command until its substituted command/cwd digest is approved under `~/.agentfeeds/approvals/local-command/`. In `snapshot` mode it captures stdout/stderr with a timeout and output cap, and may parse stdout as JSON before applying a JMESPath transform. In `event` mode it requires `parse: json`, selects an item array with `items_from`, optionally uses `id_from` and `time_from`, and applies the transform to each item.
 
 -----
 
@@ -595,13 +597,13 @@ You’re done when all of these are true:
 
 - [ ] `python3 scripts/agentfeeds_fetch.py` polls the 8 starter streams and writes valid state files.
 - [ ] `python3 scripts/agentfeeds.py streams list/show/read` reflects refreshed state after each fetch.
-- [ ] The bundle’s `SKILL.md` + recipes work in Hermes: subscribe, unsubscribe, refresh, and template search all complete without error.
+- [ ] The bundle’s `SKILL.md` + recipes work in a compatible agent: subscribe, unsubscribe, refresh, and template search all complete without error.
 - [ ] At least one full end-to-end demo works: cold install → `subscribe me to weather in San Jose` → stream data exists → user asks “what’s the weather?” → agent reads via `python3 scripts/agentfeeds.py streams read` (no web search) → correct answer.
-- [ ] Hermes can translate operator intent into Agent Feeds actions without requiring the operator to know CLI flags.
-- [ ] Hermes can draft and validate a user-local template under `~/.agentfeeds/templates/` without modifying the built-in catalog.
+- [ ] The agent can translate operator intent into Agent Feeds actions without requiring the operator to know CLI flags.
+- [ ] The agent can draft and validate a user-local template under `~/.agentfeeds/templates/` without modifying the built-in catalog.
 - [ ] All tests in `tests/` pass.
 - [ ] README explains install, basic usage, and how to contribute a stream.
-- [ ] Your own Hermes setup has been running this for at least 7 days without intervention.
+- [ ] A real personal-agent setup has been running this for at least 7 days without intervention.
 
 -----
 

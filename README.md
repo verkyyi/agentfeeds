@@ -54,6 +54,7 @@ The unpacked skill folder contains:
 - `agents/openai.yaml`: skill list metadata for compatible UIs
 - `scripts/`: deterministic CLI entry points the agent can run
 - `scripts/lib/agentfeeds_runtime/`: bundled Python runtime package
+- `catalog/`: frozen built-in template catalog fallback
 - `references/`: setup, template authoring, background refresh, and publishing notes loaded only when needed
 - `assets/`: demo and skill assets
 
@@ -70,7 +71,7 @@ python3 scripts/agentfeeds.py --help
 python3 scripts/agentfeeds_fetch.py --help
 ```
 
-Background refresh is expected for normal use:
+Background refresh is required for normal ambient use:
 
 ```bash
 python3 scripts/agentfeeds.py polling status
@@ -139,7 +140,7 @@ The skill instructs the agent to:
 - read compact stream data only when relevant
 - draft and test local templates when no built-in template fits
 
-For `local_command` templates, the agent should only create commands you explicitly approve. Command templates run without a shell, with timeout and output limits.
+For `local_command` templates, the agent should only create commands you explicitly approve. Command templates run without a shell, with timeout and output limits, and they will not execute until the exact command digest has been approved with `templates approve-command`.
 
 ## Built-In Templates
 
@@ -148,6 +149,8 @@ Built-in template definitions live in the standalone catalog repository:
 ```text
 https://github.com/verkyyi/agentfeeds-catalog
 ```
+
+Release bundles include a frozen catalog snapshot so first-run template discovery works without reaching GitHub. Updating the catalog can still pull from the standalone catalog repo or an alternate source.
 
 Current built-in templates include:
 
@@ -194,7 +197,7 @@ python3 scripts/agentfeeds.py polling uninstall
 
 On macOS this installs a LaunchAgent at `~/Library/LaunchAgents/dev.agentfeeds.fetch.plist`. On Linux it installs a tagged crontab block. The interval is the shortest configured subscription interval, floored at 5 minutes.
 
-## Hermes
+## Hermes Integration
 
 Hermes users can install the standalone Hermes plugin instead of manually unpacking the skill:
 
@@ -215,7 +218,7 @@ This repo is the source tree for the skill. Release artifacts should be built as
 python3 scripts/bundle/build_skill_bundle.py --output dist/agentfeeds-skill-v0.1.0.zip
 ```
 
-The bundle intentionally includes only the skill surface and runtime files needed by agents. Repo-only docs, tests, build outputs, and caches are excluded.
+The bundle intentionally includes only the skill surface, frozen catalog snapshot, and runtime files needed by agents. Repo-only docs, tests, build outputs, and caches are excluded.
 
 ## FAQ
 

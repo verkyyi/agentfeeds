@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import fcntl
 import hashlib
 import json
 import os
@@ -22,6 +21,11 @@ from agentfeeds_runtime.adapters import run_adapter as run_adapter_impl
 from agentfeeds_runtime.constants import REQUEST_TIMEOUT_SECONDS
 
 try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows import compatibility.
+    fcntl = None
+
+try:
     import yaml
 except ImportError:  # pragma: no cover
     yaml = None
@@ -31,6 +35,7 @@ SPEC_VERSION = "0.3"
 DEFAULT_ROOT = Path.home() / ".agentfeeds"
 DEFAULT_CATALOG_BASE_URL = "https://raw.githubusercontent.com/verkyyi/agentfeeds-catalog/main"
 PARAMETER_PATTERN = re.compile(r"{([A-Za-z_][A-Za-z0-9_]*)}")
+UNSAFE_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 LOCK_FILE_NAME = "agentfeeds-fetch.lock"
 
 
@@ -47,21 +52,36 @@ def parse_utc(value: str | None) -> datetime | None:
         return None
 
 
+def safe_name_part(value: str, fallback: str = "part", max_chars: int = 96) -> str:
+    compact = UNSAFE_NAME_PATTERN.sub("-", value).strip("-._")
+    if not compact:
+        compact = fallback
+    if len(compact) > max_chars:
+        compact = compact[:max_chars].rstrip("-._") or fallback
+    return compact
+
+
+def query_name_part(query: str) -> str:
+    compact = safe_name_part(query.replace("&", "-"), "query", 96)
+    digest = hashlib.sha256(query.encode("utf-8")).hexdigest()[:12]
+    return f"{compact}.{digest}"
+
+
 def state_path_for_stream(stream_uri: str, root: Path = DEFAULT_ROOT) -> Path:
     parsed = urlparse(stream_uri)
     if parsed.scheme != "feed" or not parsed.netloc:
         raise ValueError(f"invalid feed URI: {stream_uri}")
 
-    path = parsed.path.lstrip("/").replace("/", ".")
+    path = ".".join(safe_name_part(part, "path") for part in parsed.path.split("/") if part)
     name = path or "index"
     if parsed.netloc == "local.file":
         params = parse_qs(parsed.query, keep_blank_values=True)
         local_path = (params.get("path") or [""])[0]
-        stem = re.sub(r"[^A-Za-z0-9._-]+", "-", Path(local_path).name).strip("-") or "file"
+        stem = safe_name_part(Path(local_path).name, "file")
         digest = hashlib.sha256(parsed.query.encode("utf-8")).hexdigest()[:12]
         return root / "state" / parsed.netloc / f"{name}.{stem}.{digest}.json"
     if parsed.query:
-        name = f"{name}.{parsed.query.replace('&', ',')}"
+        name = f"{name}.{query_name_part(parsed.query)}"
     return root / "state" / parsed.netloc / f"{name}.json"
 
 
@@ -117,6 +137,8 @@ def write_fetch_status(
 
 @contextlib.contextmanager
 def fetch_lock(root: Path):
+    if fcntl is None:
+        raise RuntimeError("Agent Feeds background locking requires a POSIX platform such as macOS, Linux, or WSL")
     path = root / LOCK_FILE_NAME
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+", encoding="utf-8") as handle:
@@ -140,6 +162,7 @@ def fetch_lock(root: Path):
 
 
 def ensure_root(root: Path) -> None:
+    (root / "approvals" / "local-command").mkdir(parents=True, exist_ok=True)
     (root / "catalog-cache").mkdir(parents=True, exist_ok=True)
     (root / "state").mkdir(parents=True, exist_ok=True)
     (root / "templates" / "streams").mkdir(parents=True, exist_ok=True)
@@ -166,7 +189,7 @@ def load_subscriptions(root: Path) -> dict:
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[3]
 
 
 def templates_root(root: Path) -> Path:
@@ -187,6 +210,10 @@ def catalog_cache_root(root: Path) -> Path:
 
 def cached_catalog_file(root: Path, relative_path: str) -> Path:
     return catalog_cache_root(root) / relative_path
+
+
+def bundled_catalog_root() -> Path:
+    return repo_root() / "catalog"
 
 
 def local_catalog_root() -> Path | None:
@@ -319,7 +346,7 @@ def stream_summary(path: Path, root: Path) -> dict:
 def stream_definition_schema_path(root: Path) -> Path:
     candidates = [
         cached_catalog_file(root, "catalog/schemas/stream-definition.v0.3.json"),
-        repo_root() / "catalog" / "schemas" / "stream-definition.v0.3.json",
+        bundled_catalog_root() / "schemas" / "stream-definition.v0.3.json",
     ]
     for path in candidates:
         if path.exists():
@@ -333,7 +360,7 @@ def stream_definition_schema_path(root: Path) -> Path:
 
 def builtin_stream_paths(root: Path):
     yield from (catalog_cache_root(root) / "catalog" / "streams").glob("**/*.yaml")
-    yield from (repo_root() / "catalog" / "streams").glob("**/*.yaml")
+    yield from (bundled_catalog_root() / "streams").glob("**/*.yaml")
 
 
 def cached_event_schemas_root(root: Path) -> Path:
@@ -375,7 +402,7 @@ def schema_path_for_url(root: Path, schema_url: str) -> Path:
     for path in [
         template_schemas_root(root) / name,
         cached_event_schemas_root(root) / name,
-        repo_root() / "catalog" / "schemas" / "event-types" / name,
+        bundled_catalog_root() / "schemas" / "event-types" / name,
     ]:
         if path.exists():
             return path
@@ -456,11 +483,63 @@ def validate_parameters(stream: dict, parameters: dict) -> None:
         raise ValueError(f"{stream['id']}: missing required parameters: {', '.join(missing)}")
 
 
+def local_command_approval_digest(stream: dict, adapter: dict) -> str:
+    payload = {
+        "stream_id": stream["id"],
+        "command": adapter.get("command"),
+        "cwd": adapter.get("cwd"),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def local_command_approval_path(root: Path, stream_id: str) -> Path:
+    parts = [part for part in stream_id.split("/") if part]
+    if not parts:
+        parts = ["unknown"]
+    safe_parts = [safe_name_part(part, "unknown") for part in parts]
+    safe_parts[-1] = f"{safe_parts[-1]}.json"
+    return root / "approvals" / "local-command" / Path(*safe_parts)
+
+
+def write_local_command_approval(root: Path, stream: dict, adapter: dict) -> dict:
+    digest = local_command_approval_digest(stream, adapter)
+    payload = {
+        "version": SPEC_VERSION,
+        "stream_id": stream["id"],
+        "digest": digest,
+        "command": adapter.get("command"),
+        "cwd": adapter.get("cwd"),
+        "approved_at": now_utc(),
+    }
+    atomic_write_json(local_command_approval_path(root, stream["id"]), payload)
+    return payload
+
+
+def require_local_command_approval(root: Path, stream: dict, adapter: dict) -> None:
+    approval_path = local_command_approval_path(root, stream["id"])
+    approval = load_existing_state(approval_path)
+    digest = local_command_approval_digest(stream, adapter)
+    if not approval or approval.get("digest") != digest:
+        rel_path = approval_path.relative_to(root)
+        raise PermissionError(
+            f"{stream['id']}: local_command is not approved for this command digest; "
+            f"review the command and run `python3 scripts/agentfeeds.py templates approve-command {stream['id']}` "
+            f"to write {rel_path}"
+        )
+
+
 def publisher_for(stream_uri: str) -> str:
     return urlparse(stream_uri).netloc
 
 
-def run_adapter(stream: dict, parameters: dict) -> tuple[str, list[dict]]:
+def run_adapter(stream: dict, parameters: dict, root: Path | None = None) -> tuple[str, list[dict]]:
+    validate_parameters(stream, parameters)
+    adapter = substitute(stream["adapter"], parameters)
+    if adapter.get("kind") == "local_command":
+        if root is None:
+            raise PermissionError(f"{stream['id']}: local_command execution requires an Agent Feeds root for approval lookup")
+        require_local_command_approval(root, stream, adapter)
     return run_adapter_impl(
         stream,
         parameters,
@@ -551,6 +630,24 @@ def is_due(path: Path, interval_seconds: int, force: bool) -> bool:
     return datetime.now(UTC) - updated >= timedelta(seconds=interval_seconds)
 
 
+def schema_validation_enabled() -> bool:
+    value = os.environ.get("AGENTFEEDS_VALIDATE")
+    if value is None:
+        return True
+    return value.lower() not in {"0", "false", "no", "off"}
+
+
+def validate_events_for_stream(root: Path, stream: dict, events: list[dict]) -> None:
+    if not schema_validation_enabled():
+        return
+    schema = json.loads(schema_path_for_url(root, stream["schema_url"]).read_text(encoding="utf-8"))
+    for index, event in enumerate(events):
+        try:
+            jsonschema.validate(event.get("data"), schema)
+        except jsonschema.ValidationError as exc:
+            raise ValueError(f"{stream['id']}: event {index} does not match {stream['schema_url']}: {exc.message}") from exc
+
+
 def state_payload(
     subscription: dict,
     stream: dict,
@@ -613,18 +710,15 @@ def regenerate_catalog(root: Path) -> None:
         "",
     ]
     state_entries = []
-    try:
-        subscriptions = load_subscriptions(root).get("subscriptions") or []
-        for subscription in subscriptions:
-            stream = load_stream_definition(root, template_id_for(subscription))
-            parameters = subscription.get("parameters") or {}
-            stream_uri = source_uri_for(stream, parameters)
-            path = state_path_for_stream(stream_uri, root)
-            payload = load_existing_state(path) if path.exists() else {}
-            meta = (payload or {}).get("_meta", {})
-            state_entries.append((subscription, stream, stream_uri, path, meta))
-    except Exception:
-        state_entries = []
+    subscriptions = load_subscriptions(root).get("subscriptions") or []
+    for subscription in subscriptions:
+        stream = load_stream_definition(root, template_id_for(subscription))
+        parameters = subscription.get("parameters") or {}
+        stream_uri = source_uri_for(stream, parameters)
+        path = state_path_for_stream(stream_uri, root)
+        payload = load_existing_state(path) if path.exists() else {}
+        meta = (payload or {}).get("_meta", {})
+        state_entries.append((subscription, stream, stream_uri, path, meta))
     if not state_entries:
         lines.extend(["No active state files found.", ""])
 
@@ -683,8 +777,9 @@ def run_fetch(args: argparse.Namespace, root: Path) -> int:
             if not is_due(path, interval_seconds, force):
                 continue
 
-            stream_uri, events = run_adapter(stream, parameters)
+            stream_uri, events = run_adapter(stream, parameters, root)
             events = [event for event in events if event_matches_filter(event, subscription.get("filter"))]
+            validate_events_for_stream(root, stream, events)
             history_limit = int(subscription.get("history_limit") or defaults.get("history_limit") or 50)
             existing = load_existing_state(path)
             payload = state_payload(subscription, stream, stream_uri, events, existing, interval_seconds, history_limit)
@@ -723,7 +818,7 @@ def main(argv: list[str] | None = None) -> int:
     with fetch_lock(root) as acquired:
         if not acquired:
             print(f"agentfeeds-fetch already running for {root}; skipping", file=sys.stderr)
-            return 0
+            return 1
         return run_fetch(args, root)
 
 

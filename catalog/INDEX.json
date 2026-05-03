@@ -1,0 +1,249 @@
+{
+  "generated_at": "2026-05-02T07:38:32Z",
+  "spec_version": "0.3",
+  "stream_count": 12,
+  "streams": [
+    {
+      "auth": "none",
+      "description": "Events from a public iCalendar URL.",
+      "id": "calendar/ics",
+      "mode": "event",
+      "parameters": [
+        "url"
+      ],
+      "path": "catalog/streams/calendar/ics.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "calendar",
+        "ics",
+        "ical",
+        "events",
+        "free",
+        "no-auth"
+      ],
+      "title": "iCalendar feed",
+      "type": "ical.event"
+    },
+    {
+      "auth": "none",
+      "description": "Recent issues for a public GitHub repository.",
+      "id": "dev/github-issues",
+      "mode": "event",
+      "parameters": [
+        "owner",
+        "repo",
+        "state"
+      ],
+      "path": "catalog/streams/dev/github-issues.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "dev",
+        "github",
+        "issues",
+        "free",
+        "no-auth"
+      ],
+      "title": "GitHub repository issues",
+      "type": "github.issue"
+    },
+    {
+      "auth": "none",
+      "description": "Recent pull requests for a public GitHub repository.",
+      "id": "dev/github-prs",
+      "mode": "event",
+      "parameters": [
+        "owner",
+        "repo",
+        "state"
+      ],
+      "path": "catalog/streams/dev/github-prs.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "dev",
+        "github",
+        "pull-request",
+        "prs",
+        "free",
+        "no-auth"
+      ],
+      "title": "GitHub repository pull requests",
+      "type": "github.pull-request"
+    },
+    {
+      "auth": "none",
+      "description": "Latest release events for a public GitHub repository.",
+      "id": "dev/github-releases",
+      "mode": "event",
+      "parameters": [
+        "owner",
+        "repo"
+      ],
+      "path": "catalog/streams/dev/github-releases.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "dev",
+        "github",
+        "releases",
+        "free",
+        "no-auth"
+      ],
+      "title": "GitHub repository releases",
+      "type": "github.release"
+    },
+    {
+      "auth": "none",
+      "description": "Current Hacker News front page stories via the Algolia API.",
+      "id": "dev/hackernews-frontpage",
+      "mode": "event",
+      "parameters": [],
+      "path": "catalog/streams/dev/hackernews-frontpage.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "dev",
+        "news",
+        "hackernews",
+        "free",
+        "no-auth"
+      ],
+      "title": "Hacker News front page",
+      "type": "hn.story"
+    },
+    {
+      "auth": "none",
+      "description": "Current currency exchange rates for a base currency via a no-auth public API.",
+      "id": "finance/exchangerate",
+      "mode": "snapshot",
+      "parameters": [
+        "base"
+      ],
+      "path": "catalog/streams/finance/exchangerate.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "finance",
+        "currency",
+        "exchange-rate",
+        "free",
+        "no-auth"
+      ],
+      "title": "Current exchange rates",
+      "type": "finance.exchange-rate"
+    },
+    {
+      "auth": "none",
+      "description": "Recent earthquakes from the USGS all-hour GeoJSON feed.",
+      "id": "geo/usgs-earthquakes-hour",
+      "mode": "event",
+      "parameters": [],
+      "path": "catalog/streams/geo/usgs-earthquakes-hour.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "earthquake",
+        "geo",
+        "usgs",
+        "free",
+        "no-auth"
+      ],
+      "title": "USGS earthquakes in the past hour",
+      "type": "geo.earthquake"
+    },
+    {
+      "auth": "none",
+      "description": "Read-only snapshot of one local text, Markdown, or JSON file.",
+      "id": "local/file",
+      "mode": "snapshot",
+      "parameters": [
+        "path"
+      ],
+      "path": "catalog/streams/local/file.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "local",
+        "file",
+        "markdown",
+        "text",
+        "json",
+        "no-auth"
+      ],
+      "title": "Local file",
+      "type": "local.file"
+    },
+    {
+      "auth": "none",
+      "description": "Subscribe to any public RSS or Atom URL.",
+      "id": "news/rss-generic",
+      "mode": "event",
+      "parameters": [
+        "url"
+      ],
+      "path": "catalog/streams/news/rss-generic.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "news",
+        "rss",
+        "atom",
+        "free",
+        "no-auth"
+      ],
+      "title": "Generic RSS feed",
+      "type": "rss.item"
+    },
+    {
+      "auth": "none",
+      "description": "Current latitude and longitude for the International Space Station.",
+      "id": "space/iss-location",
+      "mode": "snapshot",
+      "parameters": [],
+      "path": "catalog/streams/space/iss-location.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "space",
+        "iss",
+        "free",
+        "no-auth"
+      ],
+      "title": "Current ISS location",
+      "type": "space.iss-location"
+    },
+    {
+      "auth": "none",
+      "description": "Free, no-API-key weather observations for any latitude and longitude.",
+      "id": "weather/openmeteo-current",
+      "mode": "snapshot",
+      "parameters": [
+        "lat",
+        "lon"
+      ],
+      "path": "catalog/streams/weather/openmeteo-current.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "weather",
+        "free",
+        "no-auth",
+        "global"
+      ],
+      "title": "Current weather conditions (Open-Meteo)",
+      "type": "weather.observation"
+    },
+    {
+      "auth": "none",
+      "description": "Free, no-API-key 7-day forecast for any latitude and longitude.",
+      "id": "weather/openmeteo-forecast",
+      "mode": "snapshot",
+      "parameters": [
+        "lat",
+        "lon"
+      ],
+      "path": "catalog/streams/weather/openmeteo-forecast.yaml",
+      "quality_tier": "verified",
+      "tags": [
+        "weather",
+        "forecast",
+        "free",
+        "no-auth",
+        "global"
+      ],
+      "title": "7-day weather forecast (Open-Meteo)",
+      "type": "weather.forecast"
+    }
+  ]
+}

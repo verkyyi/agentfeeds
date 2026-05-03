@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 from pathlib import Path
 
@@ -28,21 +29,31 @@ def run_local_command(stream: dict, adapter: dict) -> dict:
         cwd = str(Path(str(cwd)).expanduser())
 
     started_at = now_utc()
-    completed = subprocess.run(
+    process = subprocess.Popen(
         command,
         cwd=cwd,
         env={key: os.environ[key] for key in ("HOME", "PATH", "USER", "SHELL") if key in os.environ},
-        capture_output=True,
-        timeout=timeout_seconds,
-        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=os.name == "posix",
     )
+    timed_out = False
+    try:
+        stdout_raw, stderr_raw = process.communicate(timeout=timeout_seconds)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGKILL)
+        else:  # pragma: no cover - native Windows is not a supported polling target yet.
+            process.kill()
+        stdout_raw, stderr_raw = process.communicate()
     ran_at = now_utc()
-    stdout, stdout_truncated = _decode_limited(completed.stdout, max_output_bytes)
-    stderr, stderr_truncated = _decode_limited(completed.stderr, max_output_bytes)
+    stdout, stdout_truncated = _decode_limited(stdout_raw, max_output_bytes)
+    stderr, stderr_truncated = _decode_limited(stderr_raw, max_output_bytes)
 
     parsed_json = None
     transformed = None
-    if adapter.get("parse") == "json":
+    if adapter.get("parse") == "json" and not timed_out:
         parsed_json = json.loads(stdout or "null")
         expression = adapter.get("transform", {}).get("expression")
         transformed = jmespath_search(expression, parsed_json) if expression else parsed_json
@@ -50,7 +61,8 @@ def run_local_command(stream: dict, adapter: dict) -> dict:
     return {
         "command": command,
         "cwd": cwd,
-        "exit_code": completed.returncode,
+        "exit_code": process.returncode,
+        "timed_out": timed_out,
         "stdout": stdout,
         "stderr": stderr,
         "stdout_truncated": stdout_truncated,

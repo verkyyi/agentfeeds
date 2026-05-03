@@ -13,6 +13,7 @@ INCLUDE_PATHS = [
     "LICENSE",
     "agents",
     "assets",
+    "catalog",
     "references",
     "scripts",
     "pyproject.toml",

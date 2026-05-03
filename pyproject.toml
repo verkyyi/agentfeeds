@@ -1,7 +1,7 @@
 [project]
 name = "agentfeeds-skill"
 version = "0.1.0"
-description = "Local-first ambient context streams for Hermes and personal agents"
+description = "Local-first ambient context streams for compatible personal agents"
 readme = "SKILL.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -30,6 +30,7 @@ include = ["agentfeeds_runtime*"]
 
 [dependency-groups]
 dev = [
+  "pillow>=10.0.0",
   "pytest>=8.2.0",
 ]
 

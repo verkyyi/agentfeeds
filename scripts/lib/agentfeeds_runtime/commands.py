@@ -705,14 +705,7 @@ def render_brief(entries: list[dict], truncated: bool, include_freshness: bool) 
             lines.append("- ...")
     else:
         lines.append("No active local streams.")
-    lines.extend(
-        [
-            "",
-            "Background refresh is expected. When relevant, search streams and read matching local state before web search or recomputing source data.",
-            "Use `python3 scripts/agentfeeds.py search <topic> --json` and `python3 scripts/agentfeeds.py streams read <subscription-id> --json`.",
-            "</agentfeeds>",
-        ]
-    )
+    lines.append("</agentfeeds>")
     return "\n".join(lines)
 
 
@@ -751,16 +744,18 @@ def _query_terms(query: str) -> list[str]:
     return terms
 
 
-def _iter_text_fields(value: object, path: str = "data"):
+def _iter_text_fields(value: object, path: str = "data", depth: int = 0, max_depth: int = 20):
+    if depth > max_depth:
+        return
     if value is None:
         return
     if isinstance(value, dict):
         for key, item in value.items():
-            yield from _iter_text_fields(item, f"{path}.{key}")
+            yield from _iter_text_fields(item, f"{path}.{key}", depth + 1, max_depth)
         return
     if isinstance(value, list):
         for index, item in enumerate(value):
-            yield from _iter_text_fields(item, f"{path}[{index}]")
+            yield from _iter_text_fields(item, f"{path}[{index}]", depth + 1, max_depth)
         return
     if isinstance(value, (str, int, float, bool)):
         text = str(value)
@@ -1231,7 +1226,7 @@ def cmd_templates_test(args: argparse.Namespace) -> int:
         stream = fetch.load_stream_definition(args.root, args.template_id)
         params = parse_params(args.parameters)
         fetch.validate_parameters(stream, params)
-        stream_uri, events = fetch.run_adapter(stream, params)
+        stream_uri, events = fetch.run_adapter(stream, params, args.root)
         state_path = fetch.state_path_for_stream(stream_uri, args.root)
     except Exception as exc:
         print(str(exc), file=sys.stderr)
@@ -1258,6 +1253,39 @@ def cmd_templates_test(args: argparse.Namespace) -> int:
     print(f"Events: {result['event_count']}")
     print("Sample:")
     print(json.dumps(result["sample"], indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_templates_approve_command(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    try:
+        stream = fetch.load_stream_definition(args.root, args.template_id)
+        params = parse_params(args.parameters)
+        fetch.validate_parameters(stream, params)
+        adapter = fetch.substitute(stream["adapter"], params)
+        if adapter.get("kind") != "local_command":
+            raise ValueError(f"{stream['id']}: template is not a local_command template")
+        approval = fetch.write_local_command_approval(args.root, stream, adapter)
+        path = fetch.local_command_approval_path(args.root, stream["id"])
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    result = {
+        "template": stream["id"],
+        "approval_path": str(path.relative_to(args.root)),
+        "digest": approval["digest"],
+        "command": approval["command"],
+        "cwd": approval.get("cwd"),
+    }
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    print(f"Approved: {result['template']}")
+    print(f"Path: {result['approval_path']}")
+    print(f"Digest: {result['digest']}")
+    print(f"Command: {json.dumps(result['command'])}")
     return 0
 
 
@@ -1354,6 +1382,11 @@ def build_parser() -> argparse.ArgumentParser:
     template_test.add_argument("parameters", nargs="*", help="template parameters as key=value")
     template_test.add_argument("--json", action="store_true", help="print machine-readable output")
     template_test.set_defaults(func=cmd_templates_test)
+    approve_command = template_subparsers.add_parser("approve-command", help="approve one local_command template command digest")
+    approve_command.add_argument("template_id", metavar="template_id")
+    approve_command.add_argument("parameters", nargs="*", help="template parameters as key=value")
+    approve_command.add_argument("--json", action="store_true", help="print machine-readable output")
+    approve_command.set_defaults(func=cmd_templates_approve_command)
     template_subparsers.add_parser("validate", help="validate local templates").set_defaults(func=cmd_templates_validate)
 
     return parser

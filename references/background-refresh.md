@@ -21,7 +21,7 @@ Uninstall polling only when the user no longer wants ambient refresh:
 python3 scripts/agentfeeds.py polling uninstall
 ```
 
-On macOS, polling uses launchd. On Linux and FreeBSD, polling uses a tagged crontab block. The runtime computes the shortest configured subscription interval and floors it at 5 minutes.
+On macOS, polling uses launchd. On Linux, FreeBSD, and WSL-style POSIX environments, polling uses a tagged crontab block. Native Windows polling is not currently supported. The runtime computes the shortest configured subscription interval and floors it at 5 minutes.
 
 Agents should try to verify or install polling at session start. If the scheduler is unsupported or unavailable, report that Agent Feeds can still refresh explicitly but ambient refresh is degraded.
 

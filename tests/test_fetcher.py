@@ -13,15 +13,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_state_path_for_stream_matches_spec_examples(tmp_path):
-    assert fetcher.state_path_for_stream(
+    weather_path = fetcher.state_path_for_stream(
         "feed://weather.gov/forecast?lat=37.33&lon=-121.89",
         tmp_path,
-    ) == tmp_path / "state" / "weather.gov" / "forecast.lat=37.33,lon=-121.89.json"
+    )
+    assert weather_path.parent == tmp_path / "state" / "weather.gov"
+    assert weather_path.name.startswith("forecast.lat-37.33-lon--121.89.")
+    assert weather_path.name.endswith(".json")
 
     assert fetcher.state_path_for_stream(
         "feed://github.com/repos/anthropics/claude-code/releases",
         tmp_path,
     ) == tmp_path / "state" / "github.com" / "repos.anthropics.claude-code.releases.json"
+
+
+def test_state_path_for_stream_sanitizes_url_parameters_to_flat_filename(tmp_path):
+    state_path = fetcher.state_path_for_stream(
+        "feed://calendar.local/ics?url=https://example.com/calendar.ics",
+        tmp_path,
+    )
+
+    assert state_path.parent == tmp_path / "state" / "calendar.local"
+    assert state_path.name.startswith("ics.url-https-example.com-calendar.ics.")
+    assert state_path.name.endswith(".json")
 
 
 def test_atomic_write_json_writes_complete_file(tmp_path):
@@ -37,7 +51,7 @@ def test_fetch_lock_skips_overlapping_run(tmp_path, capsys):
     fetcher.ensure_root(tmp_path)
     with fetcher.fetch_lock(tmp_path) as acquired:
         assert acquired is True
-        assert fetcher.main(["--root", str(tmp_path), "--all"]) == 0
+        assert fetcher.main(["--root", str(tmp_path), "--all"]) == 1
 
     err = capsys.readouterr().err
     assert "already running" in err
@@ -84,7 +98,10 @@ def test_once_fetch_writes_snapshot_state_and_catalog(tmp_path, monkeypatch):
 
     assert fetcher.main(["--root", str(tmp_path), "--once", "weather/santa-clara-current"]) == 0
 
-    state_path = tmp_path / "state" / "api.open-meteo.com" / "v1.forecast.latitude=37.33,longitude=-121.89.json"
+    state_path = fetcher.state_path_for_stream(
+        "feed://api.open-meteo.com/v1/forecast?latitude=37.33&longitude=-121.89",
+        tmp_path,
+    )
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["_meta"]["subscription_id"] == "weather/santa-clara-current"
     assert state["_meta"]["template_id"] == "weather/openmeteo-current"
@@ -96,7 +113,7 @@ def test_once_fetch_writes_snapshot_state_and_catalog(tmp_path, monkeypatch):
     assert status["last_success_at"]
     assert status["last_error"] is None
     assert status["consecutive_failures"] == 0
-    assert status["state_path"] == "state/api.open-meteo.com/v1.forecast.latitude=37.33,longitude=-121.89.json"
+    assert status["state_path"] == str(state_path.relative_to(tmp_path))
     catalog = (tmp_path / "catalog.md").read_text(encoding="utf-8")
     assert "weather/santa-clara-current" in catalog
     assert "weather/openmeteo-current" in catalog
@@ -202,7 +219,12 @@ def test_fetch_failure_writes_status(tmp_path, capsys):
     assert status["consecutive_failures"] == 1
 
 
-def test_local_command_fetch_writes_stdout_snapshot():
+def _approve_local_command(root: Path, stream: dict, parameters: dict | None = None) -> None:
+    adapter = fetcher.substitute(stream["adapter"], parameters or {})
+    fetcher.write_local_command_approval(root, stream, adapter)
+
+
+def test_local_command_fetch_requires_approval(tmp_path):
     stream = {
         "id": "personal/command",
         "title": "Command",
@@ -218,7 +240,32 @@ def test_local_command_fetch_writes_stdout_snapshot():
         },
     }
 
-    stream_uri, events = fetcher.run_adapter(stream, {})
+    try:
+        fetcher.run_adapter(stream, {}, tmp_path)
+    except PermissionError as exc:
+        assert "local_command is not approved" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected approval failure")
+
+
+def test_local_command_fetch_writes_stdout_snapshot(tmp_path):
+    stream = {
+        "id": "personal/command",
+        "title": "Command",
+        "description": "Command snapshot",
+        "type": "local.command",
+        "mode": "snapshot",
+        "schema_url": "https://agentfeeds.dev/schemas/local.command.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://personal.command/command",
+        "adapter": {
+            "kind": "local_command",
+            "command": [sys.executable, "-c", "print('hello from command')"],
+        },
+    }
+
+    _approve_local_command(tmp_path, stream)
+    stream_uri, events = fetcher.run_adapter(stream, {}, tmp_path)
 
     assert stream_uri == "feed://personal.command/command"
     assert len(events) == 1
@@ -229,7 +276,7 @@ def test_local_command_fetch_writes_stdout_snapshot():
     assert events[0]["data"]["transformed"] is None
 
 
-def test_local_command_fetch_can_parse_json_and_transform():
+def test_local_command_fetch_can_parse_json_and_transform(tmp_path):
     stream = {
         "id": "personal/json-command",
         "title": "JSON command",
@@ -254,7 +301,8 @@ def test_local_command_fetch_can_parse_json_and_transform():
         },
     }
 
-    _stream_uri, events = fetcher.run_adapter(stream, {})
+    _approve_local_command(tmp_path, stream)
+    _stream_uri, events = fetcher.run_adapter(stream, {}, tmp_path)
 
     data = events[0]["data"]
     assert data["exit_code"] == 0
@@ -262,7 +310,7 @@ def test_local_command_fetch_can_parse_json_and_transform():
     assert data["transformed"] == ["A", "B"]
 
 
-def test_local_command_fetch_event_mode_emits_one_event_per_item():
+def test_local_command_fetch_event_mode_emits_one_event_per_item(tmp_path):
     stream = {
         "id": "personal/recent-items",
         "title": "Recent items",
@@ -296,7 +344,8 @@ def test_local_command_fetch_event_mode_emits_one_event_per_item():
         },
     }
 
-    _stream_uri, events = fetcher.run_adapter(stream, {})
+    _approve_local_command(tmp_path, stream)
+    _stream_uri, events = fetcher.run_adapter(stream, {}, tmp_path)
 
     assert [event["id"] for event in events] == ["a", "b"]
     assert [event["time"] for event in events] == ["2026-05-01T00:00:00Z", "2026-05-01T01:00:00Z"]
@@ -420,7 +469,10 @@ def test_calendar_ics_fetch_writes_event_state(tmp_path, monkeypatch):
 
     assert fetcher.main(["--root", str(tmp_path), "--once", "calendar/example-com"]) == 0
 
-    state_path = tmp_path / "state" / "calendar.local" / "ics.url=https:/example.com/calendar.ics.json"
+    state_path = fetcher.state_path_for_stream(
+        "feed://calendar.local/ics?url=https://example.com/calendar.ics",
+        tmp_path,
+    )
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["_meta"]["subscription_id"] == "calendar/example-com"
     assert state["_meta"]["template_id"] == "calendar/ics"

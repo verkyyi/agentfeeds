@@ -48,6 +48,7 @@ def test_catalog_cache_can_download_remote_catalog(tmp_path, monkeypatch):
 
     monkeypatch.delenv("AGENTFEEDS_CATALOG_DIR", raising=False)
     monkeypatch.setenv("AGENTFEEDS_CATALOG_BASE_URL", "https://catalog.example")
+    monkeypatch.setattr(fetch, "local_catalog_root", lambda: None)
     monkeypatch.setattr(fetch.requests, "get", fake_get)
 
     fetch.update_catalog_cache(tmp_path)
@@ -64,6 +65,16 @@ def test_catalog_cache_can_download_remote_catalog(tmp_path, monkeypatch):
 
 
 def test_load_stream_definition_uses_catalog_cache(tmp_path):
+    stream = fetch.load_stream_definition(tmp_path, "local/file")
+
+    assert stream["id"] == "local/file"
+    assert stream["adapter"]["kind"] == "local_file"
+
+
+def test_bundled_catalog_supports_first_run_without_network(tmp_path, monkeypatch):
+    monkeypatch.delenv("AGENTFEEDS_CATALOG_DIR", raising=False)
+    monkeypatch.setattr(fetch.requests, "get", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("network used")))
+
     stream = fetch.load_stream_definition(tmp_path, "local/file")
 
     assert stream["id"] == "local/file"

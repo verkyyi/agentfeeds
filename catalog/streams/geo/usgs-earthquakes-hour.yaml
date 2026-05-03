@@ -1,0 +1,30 @@
+id: geo/usgs-earthquakes-hour
+title: USGS earthquakes in the past hour
+description: Recent earthquakes from the USGS all-hour GeoJSON feed.
+type: geo.earthquake
+mode: event
+schema_url: https://agentfeeds.dev/schemas/geo.earthquake.v1.json
+schema_version: 1.0.0
+parameters: []
+source_uri_template: "feed://earthquake.usgs.gov/all/hour"
+adapter:
+  kind: paginated_json_http
+  url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson"
+  method: GET
+  headers: {}
+  transform:
+    language: jmespath
+    expression: |
+      features[].{
+        id: id,
+        time: properties.time,
+        magnitude: properties.mag,
+        place: properties.place,
+        url: properties.url
+      }
+  id_from: id
+recommended_poll_interval_seconds: 300
+auth: none
+tags: [earthquake, geo, usgs, free, no-auth]
+quality_tier: verified
+contributed_by: agentfeeds

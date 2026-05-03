@@ -8,7 +8,7 @@ Built-in templates are sourced from the standalone catalog repository:
 https://github.com/verkyyi/agentfeeds-catalog
 ```
 
-They are cached under `~/.agentfeeds/catalog-cache/` by `python3 scripts/agentfeeds_fetch.py --update-catalog`. User-local templates live under `~/.agentfeeds/templates/` and are merged into discovery at runtime.
+The skill bundle includes a frozen catalog snapshot for offline first-run discovery. Updated catalog files are cached under `~/.agentfeeds/catalog-cache/` by `python3 scripts/agentfeeds_fetch.py --update-catalog`. User-local templates live under `~/.agentfeeds/templates/` and are merged into discovery at runtime.
 
 Start by checking built-ins:
 
@@ -44,3 +44,11 @@ Local templates live under the Agent Feeds runtime root:
 ```
 
 Use `local_command` only for explicitly approved read-only commands. Commands must be argv arrays, not shell strings. Avoid commands that mutate files, cloud resources, accounts, or external services.
+
+Local command templates require a command digest approval before they can run:
+
+```bash
+python3 scripts/agentfeeds.py templates approve-command <template-id> [key=value ...]
+```
+
+Show the exact command to the user before approving it. If the command or parameters change, approve the new digest before testing, subscribing, or refreshing.

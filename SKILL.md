@@ -9,7 +9,7 @@ Agent Feeds is a local-first ambient context layer for agents. A background fetc
 
 Use this skill at session start, when managing feeds/subscriptions/templates, and before web search or expensive source-specific work if subscribed local state may already cover the prompt.
 
-Requires shell access, Python 3.11+, and either `pip` or `uv` for setup. Network access is needed for setup, remote catalog updates, and public feed templates.
+Requires shell access, Python 3.11+, and either `pip` or `uv` for setup. Background polling is supported on macOS, Linux, FreeBSD, and WSL-style POSIX environments. The bundle includes a frozen template catalog for first use; network access is needed for setup, remote catalog updates, and public feed refreshes.
 
 ## Command Map
 
@@ -41,6 +41,7 @@ References to load only when needed:
 - Background refresh details: `references/background-refresh.md`
 
 Built-in templates come from the standalone catalog repo `https://github.com/verkyyi/agentfeeds-catalog` and are cached locally; user-local templates live under `~/.agentfeeds/templates/`.
+The release bundle includes a frozen built-in catalog fallback so first-run discovery does not depend on GitHub being reachable.
 
 ## Session Start
 
@@ -109,7 +110,7 @@ python3 scripts/agentfeeds.py templates test <template-id> key=value
 
 Read `references/template-authoring.md` before editing scaffolded template YAML.
 
-For `local_command` templates, use argv arrays only. Only create command templates for explicitly requested or approved read-only commands. Avoid commands that mutate files, cloud resources, accounts, or external services.
+For `local_command` templates, use argv arrays only. Only create command templates for explicitly requested or approved read-only commands. Avoid commands that mutate files, cloud resources, accounts, or external services. Before testing, subscribing, or refreshing a `local_command` template, show the exact command to the user and run `python3 scripts/agentfeeds.py templates approve-command <template-id> [key=value ...]` only after they approve it.
 
 ## Safety Rules
 
