@@ -287,3 +287,5 @@ See [docs/DEMO.md](docs/DEMO.md) for the demo transcript and talking points.
 See [docs/SHARING.md](docs/SHARING.md) for a short pitch, demo script, and release notes draft.
 
 For product framing, use cases, and benefits, see [docs/PRODUCT_SPEC.md](docs/PRODUCT_SPEC.md).
+
+For protocol and implementation details, see [docs/SPEC.md](docs/SPEC.md).

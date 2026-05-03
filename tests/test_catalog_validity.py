@@ -3,7 +3,7 @@ from pathlib import Path
 
 import yaml
 
-from agentfeeds import fetch
+from agentfeeds import fetcher as fetch
 
 
 ROOT = Path(__file__).resolve().parents[1]

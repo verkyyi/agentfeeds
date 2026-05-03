@@ -5,7 +5,9 @@ from pathlib import Path
 import sys
 import textwrap
 
-import agentfeeds.fetch as fetcher
+import agentfeeds.adapters.http as http_adapter
+import agentfeeds.adapters.ical as ical_adapter
+import agentfeeds.fetcher as fetcher
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -78,7 +80,7 @@ def test_once_fetch_writes_snapshot_state_and_catalog(tmp_path, monkeypatch):
                 },
             }
 
-    monkeypatch.setattr(fetcher.requests, "request", lambda *args, **kwargs: FakeResponse())
+    monkeypatch.setattr(http_adapter.requests, "request", lambda *args, **kwargs: FakeResponse())
 
     assert fetcher.main(["--root", str(tmp_path), "--once", "weather/santa-clara-current"]) == 0
 
@@ -323,7 +325,7 @@ def test_github_issue_and_pr_adapters_transform_payloads(tmp_path, monkeypatch):
             ]
         )
 
-    monkeypatch.setattr(fetcher.requests, "request", fake_request)
+    monkeypatch.setattr(http_adapter.requests, "request", fake_request)
 
     _issues_uri, issue_events = fetcher.run_adapter(issues, {"owner": "example", "repo": "repo", "state": "open"})
     _prs_uri, pr_events = fetcher.run_adapter(prs, {"owner": "example", "repo": "repo", "state": "open"})
@@ -374,7 +376,7 @@ def test_calendar_ics_fetch_writes_event_state(tmp_path, monkeypatch):
         def raise_for_status(self):
             return None
 
-    monkeypatch.setattr(fetcher.requests, "get", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(ical_adapter.requests, "get", lambda *_args, **_kwargs: FakeResponse())
 
     assert fetcher.main(["--root", str(tmp_path), "--once", "calendar/example-com"]) == 0
 

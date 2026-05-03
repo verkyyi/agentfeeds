@@ -6,7 +6,7 @@ import sys
 
 import yaml
 
-from agentfeeds import cli
+import agentfeeds.commands as cli
 
 
 def test_cli_subscribe_status_and_unsubscribe_without_fetch(tmp_path, capsys):
@@ -69,8 +69,8 @@ def test_cli_materializes_parameterized_subscription(tmp_path, monkeypatch):
         def raise_for_status(self):
             return None
 
-    monkeypatch.setattr(cli.fetch.requests, "get", lambda *_args, **_kwargs: FakeResponse())
-    monkeypatch.setattr(cli.fetch.feedparser, "parse", lambda *_args, **_kwargs: Parsed())
+    monkeypatch.setattr(cli.requests, "get", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(cli.feedparser, "parse", lambda *_args, **_kwargs: Parsed())
 
     assert cli.main([
         "--root",

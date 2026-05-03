@@ -15,10 +15,10 @@ dependencies = [
 ]
 
 [project.scripts]
-agentfeeds = "agentfeeds.cli:main"
-agentfeeds-fetch = "agentfeeds.fetch:main"
-agentfeeds-install-poll = "agentfeeds.polling_install:main"
-agentfeeds-uninstall-poll = "agentfeeds.polling_uninstall:main"
+agentfeeds = "agentfeeds.commands:main"
+agentfeeds-fetch = "agentfeeds.fetcher:main"
+agentfeeds-install-poll = "agentfeeds.polling.install:main"
+agentfeeds-uninstall-poll = "agentfeeds.polling.uninstall:main"
 
 [build-system]
 requires = ["setuptools>=69"]

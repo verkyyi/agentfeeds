@@ -13,9 +13,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import feedparser
+import requests
 import yaml
 
-from agentfeeds import fetch
+from agentfeeds import fetcher as fetch
+from agentfeeds.constants import REQUEST_TIMEOUT_SECONDS
 
 
 INSTANCE_ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9][a-z0-9-]*$")
@@ -223,9 +226,9 @@ def _domain_title(domain: str, suffix: str = "RSS feed") -> str:
 def _rss_identity(url: str) -> tuple[str | None, str | None]:
     parsed = None
     try:
-        response = fetch.requests.get(url, timeout=fetch.REQUEST_TIMEOUT_SECONDS)
+        response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
         response.raise_for_status()
-        parsed = fetch.feedparser.parse(response.content)
+        parsed = feedparser.parse(response.content)
     except Exception:
         parsed = None
 

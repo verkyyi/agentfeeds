@@ -10,17 +10,16 @@ import hashlib
 import json
 import os
 import re
-import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-import feedparser
-import icalendar
-import jmespath
 import jsonschema
 import requests
+
+from agentfeeds.adapters import run_adapter as run_adapter_impl
+from agentfeeds.constants import REQUEST_TIMEOUT_SECONDS
 
 try:
     import yaml
@@ -29,12 +28,8 @@ except ImportError:  # pragma: no cover
 
 
 SPEC_VERSION = "0.3"
-AGENTFEEDS_VERSION = "agentfeeds/0.3"
 DEFAULT_ROOT = Path.home() / ".agentfeeds"
 DEFAULT_CATALOG_BASE_URL = "https://raw.githubusercontent.com/verkyyi/agentfeeds-catalog/main"
-REQUEST_TIMEOUT_SECONDS = 20
-COMMAND_TIMEOUT_SECONDS = 20
-COMMAND_MAX_OUTPUT_BYTES = 1024 * 1024
 PARAMETER_PATTERN = re.compile(r"{([A-Za-z_][A-Za-z0-9_]*)}")
 LOCK_FILE_NAME = "agentfeeds-fetch.lock"
 
@@ -426,234 +421,14 @@ def publisher_for(stream_uri: str) -> str:
     return urlparse(stream_uri).netloc
 
 
-def stable_hash(value: object) -> str:
-    encoded = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()[:16]
-
-
-def jmespath_search(expression: str | None, document: object) -> object:
-    if not expression:
-        return None
-    return jmespath.search(expression, document)
-
-
-def envelope(stream: dict, stream_uri: str, event_id: object, data: dict, event_time: str | None = None) -> dict:
-    return {
-        "specversion": AGENTFEEDS_VERSION,
-        "id": str(event_id or stable_hash(data)),
-        "source": stream_uri,
-        "type": stream["type"],
-        "time": event_time or now_utc(),
-        "schema_url": stream["schema_url"],
-        "schema_version": stream["schema_version"],
-        "mode": stream["mode"],
-        "data": data,
-    }
-
-
-def fetch_json(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
-    response = requests.request(
-        adapter.get("method", "GET"),
-        adapter["url"],
-        headers=adapter.get("headers") or {},
-        timeout=REQUEST_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    raw = response.json()
-    expression = adapter.get("transform", {}).get("expression")
-    transformed = jmespath_search(expression, raw) if expression else raw
-
-    if adapter["kind"] == "json_http":
-        if not isinstance(transformed, dict):
-            raise ValueError(f"{stream['id']}: json_http transform must produce an object")
-        event_id = jmespath_search(adapter.get("id_from"), raw) or stable_hash(transformed)
-        return [envelope(stream, stream_uri, event_id, transformed)]
-
-    if not isinstance(transformed, list):
-        raise ValueError(f"{stream['id']}: paginated_json_http transform must produce an array")
-    events = []
-    for item in transformed:
-        if not isinstance(item, dict):
-            raise ValueError(f"{stream['id']}: paginated_json_http items must be objects")
-        event_id = jmespath_search(adapter.get("id_from"), item) or stable_hash(item)
-        events.append(envelope(stream, stream_uri, event_id, item))
-    return events
-
-
-def fetch_rss(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
-    parsed = feedparser.parse(adapter["url"])
-    if parsed.bozo:
-        raise ValueError(f"{stream['id']}: failed to parse RSS feed: {parsed.bozo_exception}")
-    events = []
-    for entry in parsed.entries:
-        data = {
-            "title": entry.get("title", ""),
-            "link": entry.get("link"),
-            "summary": entry.get("summary"),
-            "published": entry.get("published"),
-            "id": entry.get("id") or entry.get("guid") or entry.get("link"),
-        }
-        event_id = data["id"] or stable_hash(data)
-        events.append(envelope(stream, stream_uri, event_id, data))
-    return events
-
-
-def serialize_ical_value(value: object) -> str | None:
-    if value is None:
-        return None
-    decoded = getattr(value, "dt", value)
-    if hasattr(decoded, "isoformat"):
-        return decoded.isoformat()
-    return str(decoded)
-
-
-def fetch_ical(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
-    response = requests.get(adapter["url"], timeout=REQUEST_TIMEOUT_SECONDS)
-    response.raise_for_status()
-    calendar = icalendar.Calendar.from_ical(response.content)
-    events = []
-    for component in calendar.walk("VEVENT"):
-        data = {
-            "uid": str(component.get("uid", "")),
-            "summary": str(component.get("summary", "")),
-            "starts_at": serialize_ical_value(component.get("dtstart")),
-            "ends_at": serialize_ical_value(component.get("dtend")),
-            "location": str(component.get("location")) if component.get("location") else None,
-        }
-        events.append(envelope(stream, stream_uri, data["uid"] or stable_hash(data), data))
-    return events
-
-
-def fetch_local_file(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
-    path = Path(adapter["path"]).expanduser()
-    if not path.is_absolute():
-        path = path.resolve()
-    if not path.exists():
-        raise FileNotFoundError(f"{stream['id']}: local file not found: {path}")
-    if not path.is_file():
-        raise ValueError(f"{stream['id']}: local path is not a file: {path}")
-
-    raw = path.read_bytes()
-    stat = path.stat()
-    modified_at = datetime.fromtimestamp(stat.st_mtime, UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    data = {
-        "path": str(path),
-        "name": path.name,
-        "extension": path.suffix.lstrip("."),
-        "content": raw.decode("utf-8", errors="replace"),
-        "size_bytes": stat.st_size,
-        "sha256": hashlib.sha256(raw).hexdigest(),
-        "modified_at": modified_at,
-    }
-    return [envelope(stream, stream_uri, data["sha256"], data, modified_at)]
-
-
-def _decode_limited(raw: bytes, limit: int) -> tuple[str, bool]:
-    truncated = len(raw) > limit
-    return raw[:limit].decode("utf-8", errors="replace"), truncated
-
-
-def run_local_command(stream: dict, adapter: dict) -> dict:
-    command = adapter.get("command")
-    if not isinstance(command, list) or not command or not all(isinstance(item, str) for item in command):
-        raise ValueError(f"{stream['id']}: local_command adapter.command must be a non-empty string array")
-
-    timeout_seconds = int(adapter.get("timeout_seconds") or COMMAND_TIMEOUT_SECONDS)
-    max_output_bytes = int(adapter.get("max_output_bytes") or COMMAND_MAX_OUTPUT_BYTES)
-    cwd = adapter.get("cwd")
-    if cwd is not None:
-        cwd = str(Path(str(cwd)).expanduser())
-
-    started_at = now_utc()
-    completed = subprocess.run(
-        command,
-        cwd=cwd,
-        env={key: os.environ[key] for key in ("HOME", "PATH", "USER", "SHELL") if key in os.environ},
-        capture_output=True,
-        timeout=timeout_seconds,
-        check=False,
-    )
-    ran_at = now_utc()
-    stdout, stdout_truncated = _decode_limited(completed.stdout, max_output_bytes)
-    stderr, stderr_truncated = _decode_limited(completed.stderr, max_output_bytes)
-
-    parsed_json = None
-    transformed = None
-    if adapter.get("parse") == "json":
-        parsed_json = json.loads(stdout or "null")
-        expression = adapter.get("transform", {}).get("expression")
-        transformed = jmespath_search(expression, parsed_json) if expression else parsed_json
-
-    return {
-        "command": command,
-        "cwd": cwd,
-        "exit_code": completed.returncode,
-        "stdout": stdout,
-        "stderr": stderr,
-        "stdout_truncated": stdout_truncated,
-        "stderr_truncated": stderr_truncated,
-        "parsed_json": parsed_json,
-        "transformed": transformed,
-        "started_at": started_at,
-        "ran_at": ran_at,
-    }
-
-
-def fetch_local_command_events(stream: dict, adapter: dict, stream_uri: str, result: dict) -> list[dict]:
-    if adapter.get("parse") != "json":
-        raise ValueError(f"{stream['id']}: local_command event streams require parse: json")
-
-    items_expression = adapter.get("items_from") or "@"
-    items = jmespath_search(items_expression, result["parsed_json"])
-    if not isinstance(items, list):
-        raise ValueError(f"{stream['id']}: local_command items_from must produce an array")
-
-    transform_expression = adapter.get("transform", {}).get("expression")
-    id_expression = adapter.get("id_from")
-    time_expression = adapter.get("time_from")
-    events = []
-    for item in items:
-        transformed = jmespath_search(transform_expression, item) if transform_expression else item
-        if not isinstance(transformed, dict):
-            raise ValueError(f"{stream['id']}: local_command event transform must produce an object")
-        event_id = jmespath_search(id_expression, item) if id_expression else None
-        if event_id is None:
-            event_id = stable_hash(item)
-        event_time = jmespath_search(time_expression, item) if time_expression else None
-        if event_time is None:
-            event_time = result["ran_at"]
-        events.append(envelope(stream, stream_uri, event_id, transformed, str(event_time) if event_time else None))
-    return events
-
-
-def fetch_local_command(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
-    result = run_local_command(stream, adapter)
-
-    if stream["mode"] == "event":
-        return fetch_local_command_events(stream, adapter, stream_uri, result)
-    if stream["mode"] != "snapshot":
-        raise ValueError(f"{stream['id']}: local_command supports snapshot and event modes")
-
-    data = result
-    return [envelope(stream, stream_uri, stable_hash(data), data, result["ran_at"])]
-
-
 def run_adapter(stream: dict, parameters: dict) -> tuple[str, list[dict]]:
-    validate_parameters(stream, parameters)
-    stream_uri = source_uri_for(stream, parameters)
-    adapter = substitute(stream["adapter"], parameters)
-    kind = adapter["kind"]
-    if kind in {"json_http", "paginated_json_http"}:
-        return stream_uri, fetch_json(stream, adapter, stream_uri)
-    if kind == "rss":
-        return stream_uri, fetch_rss(stream, adapter, stream_uri)
-    if kind == "ical":
-        return stream_uri, fetch_ical(stream, adapter, stream_uri)
-    if kind == "local_file":
-        return stream_uri, fetch_local_file(stream, adapter, stream_uri)
-    if kind == "local_command":
-        return stream_uri, fetch_local_command(stream, adapter, stream_uri)
-    raise ValueError(f"unsupported adapter kind: {kind}")
+    return run_adapter_impl(
+        stream,
+        parameters,
+        validate_parameters=validate_parameters,
+        source_uri_for=source_uri_for,
+        substitute=substitute,
+    )
 
 
 def value_at_path(payload: dict, dotted_path: str) -> object:

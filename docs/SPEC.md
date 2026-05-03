@@ -23,14 +23,23 @@ Users install an agent integration, such as the standalone Hermes plugin at `age
 
 ```
 agentfeeds/
-├── SPEC.md                          # this document
 ├── README.md                        # human-facing intro
 ├── LICENSE                          # MIT
+├── docs/
+│   └── SPEC.md                      # this document
 ├── agentfeeds/                      # Python package and CLI entrypoints
-│   ├── cli.py                       # management CLI
-│   ├── fetch.py                     # reference fetcher
-│   ├── polling_install.py           # optional cron/launchd installer
-│   └── polling_uninstall.py         # optional cron/launchd uninstaller
+│   ├── constants.py                 # shared runtime constants
+│   ├── commands.py                  # management CLI and command handlers
+│   ├── fetcher.py                   # reference fetcher orchestration
+│   ├── adapters/
+│   │   ├── http.py
+│   │   ├── rss.py
+│   │   ├── ical.py
+│   │   ├── local_file.py
+│   │   └── local_command.py
+│   └── polling/
+│       ├── install.py               # optional cron/launchd installer
+│       └── uninstall.py             # optional cron/launchd uninstaller
 ├── tests/
 │   ├── fixtures/                    # recorded API responses for offline tests
 │   ├── test_fetcher.py
