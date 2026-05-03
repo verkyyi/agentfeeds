@@ -48,6 +48,8 @@ What happens under the hood:
 
 Agent Feeds is not long-term memory. It is a refreshable, local-first context layer for fresh, inspectable ambient context that lives on your machine.
 
+This repository is also an agent-agnostic Agent Skill. Skills-compatible agents can load [SKILL.md](SKILL.md) for portable instructions on using the Agent Feeds CLI and local state files.
+
 ## Why It Exists
 
 Personal agents need awareness of local and private state without stuffing every detail into the prompt, rerunning expensive discovery, or reaching for web search first.
