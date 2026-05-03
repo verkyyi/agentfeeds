@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [[package]]
-name = "agentfeeds"
+name = "agentfeeds-skill"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

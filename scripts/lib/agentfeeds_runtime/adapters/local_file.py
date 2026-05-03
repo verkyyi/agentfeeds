@@ -6,7 +6,7 @@ import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 
-from agentfeeds.adapters.common import envelope
+from agentfeeds_runtime.adapters.common import envelope
 
 
 def fetch_local_file(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:

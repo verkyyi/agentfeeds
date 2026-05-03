@@ -45,13 +45,16 @@ def poll_interval_seconds(root: Path) -> int:
 
 
 def fetcher_path() -> str:
+    venv_candidate = Path.home() / ".agentfeeds" / "runtime-venv" / "bin" / "agentfeeds-fetch"
+    if venv_candidate.exists():
+        return str(venv_candidate)
     candidate = Path.home() / ".local" / "bin" / "agentfeeds-fetch"
     if candidate.exists():
         return str(candidate)
     command = shutil.which("agentfeeds-fetch")
     if command:
         return command
-    raise FileNotFoundError("agentfeeds-fetch not found on PATH or at ~/.local/bin/agentfeeds-fetch")
+    raise FileNotFoundError("agentfeeds-fetch not found; run `python scripts/setup.py` first")
 
 
 def install_launchd(root: Path, interval: int, fetcher: str) -> None:

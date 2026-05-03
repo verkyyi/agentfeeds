@@ -6,7 +6,7 @@ import sys
 
 import yaml
 
-import agentfeeds.commands as cli
+import agentfeeds_runtime.commands as cli
 
 
 def test_cli_subscribe_streams_and_unsubscribe_without_fetch(tmp_path, capsys):

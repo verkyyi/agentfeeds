@@ -1,0 +1,7 @@
+interface:
+  display_name: "Agent Feeds"
+  short_description: "Subscribe to fresh local stream context"
+  default_prompt: "Use $agentfeeds to show what stream templates I can subscribe to."
+
+policy:
+  allow_implicit_invocation: true

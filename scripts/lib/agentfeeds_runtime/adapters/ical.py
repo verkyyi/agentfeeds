@@ -5,8 +5,8 @@ from __future__ import annotations
 import icalendar
 import requests
 
-from agentfeeds.adapters.common import envelope, stable_hash
-from agentfeeds.constants import REQUEST_TIMEOUT_SECONDS
+from agentfeeds_runtime.adapters.common import envelope, stable_hash
+from agentfeeds_runtime.constants import REQUEST_TIMEOUT_SECONDS
 
 
 def serialize_ical_value(value: object) -> str | None:

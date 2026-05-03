@@ -18,8 +18,8 @@ from urllib.parse import parse_qs, urlparse
 import jsonschema
 import requests
 
-from agentfeeds.adapters import run_adapter as run_adapter_impl
-from agentfeeds.constants import REQUEST_TIMEOUT_SECONDS
+from agentfeeds_runtime.adapters import run_adapter as run_adapter_impl
+from agentfeeds_runtime.constants import REQUEST_TIMEOUT_SECONDS
 
 try:
     import yaml
@@ -570,7 +570,7 @@ def regenerate_catalog(root: Path) -> None:
     lines = [
         "# Agent Feeds - Active Subscriptions",
         "",
-        "This file lists data streams currently subscribed. Prefer `agentfeeds streams read <subscription-id> --json` for normal agent access.",
+        "This file lists data streams currently subscribed. Prefer `python scripts/agentfeeds.py streams read <subscription-id> --json` for normal agent access.",
         "",
     ]
     state_entries = []

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import jmespath
 
-from agentfeeds.constants import AGENTFEEDS_VERSION
+from agentfeeds_runtime.constants import AGENTFEEDS_VERSION
 
 
 def now_utc() -> str:

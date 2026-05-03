@@ -5,9 +5,9 @@ from pathlib import Path
 import sys
 import textwrap
 
-import agentfeeds.adapters.http as http_adapter
-import agentfeeds.adapters.ical as ical_adapter
-import agentfeeds.fetcher as fetcher
+import agentfeeds_runtime.adapters.http as http_adapter
+import agentfeeds_runtime.adapters.ical as ical_adapter
+import agentfeeds_runtime.fetcher as fetcher
 
 ROOT = Path(__file__).resolve().parents[1]
 

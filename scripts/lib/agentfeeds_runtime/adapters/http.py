@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import requests
 
-from agentfeeds.adapters.common import envelope, jmespath_search, stable_hash
-from agentfeeds.constants import REQUEST_TIMEOUT_SECONDS
+from agentfeeds_runtime.adapters.common import envelope, jmespath_search, stable_hash
+from agentfeeds_runtime.constants import REQUEST_TIMEOUT_SECONDS
 
 
 def fetch_json(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:

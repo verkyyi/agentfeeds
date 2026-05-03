@@ -64,7 +64,7 @@ The user's active subscriptions and state live under `~/.agentfeeds`. Detailed d
 
 ### Compact By Default
 
-Hermes should not carry every subscribed data source in every prompt. The injected context should only include a compact list of available streams. The agent reads the detailed state file only when relevant.
+Hermes should not carry every subscribed data source in every prompt. The injected context should only include a compact list of available streams. The agent reads detailed stream data through the CLI only when relevant.
 
 ### Agent-Orchestrated
 
@@ -111,11 +111,11 @@ Templates are for discovery. Subscriptions are active context.
 
 Stream data is the detailed JSON payload that Hermes reads when the user asks a related question.
 
-Agents should read it through `agentfeeds streams read <subscription-id> --json`. The underlying state files remain timestamped, structured, and inspectable on disk for debugging.
+Agents should read it through `python scripts/agentfeeds.py streams read <subscription-id> --json`. The underlying state files remain timestamped, structured, and inspectable on disk for debugging.
 
 ### Active Stream Map
 
-`agentfeeds streams list` and `agentfeeds streams search` provide the compact active-stream map. Hermes uses that map to locate relevant subscribed context without loading all data into the prompt.
+`python scripts/agentfeeds.py streams list` and `python scripts/agentfeeds.py streams search` provide the compact active-stream map. Hermes uses that map to locate relevant subscribed context without loading all data into the prompt.
 
 ### Adapter
 
@@ -131,7 +131,7 @@ User asks:
 What is on Hacker News right now?
 ```
 
-Hermes checks the Agent Feeds catalog, sees a fresh Hacker News subscription, reads the local state file, and answers without web search.
+Hermes checks active Agent Feeds streams, sees a fresh Hacker News subscription, reads the stream through the CLI, and answers without web search.
 
 Benefit:
 
@@ -253,10 +253,10 @@ Can Agent Feeds subscribe to my SQLite task database? If not, draft a template.
 The CLI exists for inspection, debugging, and agent orchestration:
 
 ```bash
-agentfeeds templates search local
-agentfeeds subscribe local/file path=~/notes/project.md --title "Project notes"
-agentfeeds streams list
-agentfeeds templates test personal/tasks --json
+python scripts/agentfeeds.py templates search local
+python scripts/agentfeeds.py subscribe local/file path=~/notes/project.md --title "Project notes"
+python scripts/agentfeeds.py streams list
+python scripts/agentfeeds.py templates test personal/tasks --json
 ```
 
 Users should not need to memorize these commands for normal operation.

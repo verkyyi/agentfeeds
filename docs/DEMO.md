@@ -9,7 +9,7 @@ Agent Feeds should be shown as an interactive Hermes session, not as a user manu
 A new Hermes session can inspect compact Agent Feeds metadata through the CLI:
 
 ```text
-agentfeeds streams list
+python scripts/agentfeeds.py streams list
 - weather/santa-clara-current: Santa Clara current weather
 - dev/hackernews-frontpage: Hacker News front page
 - finance/quote-btc: BTC quote
@@ -17,9 +17,9 @@ agentfeeds streams list
 - ops/hermes-gateway-health: Hermes gateway health
 ```
 
-The user then asks normal questions. Hermes decides when to run `agentfeeds streams read <subscription-id> --json` before using web search.
+The user then asks normal questions. Hermes decides when to run `python scripts/agentfeeds.py streams read <subscription-id> --json` before using web search.
 
-![Agent Feeds interactive session demo](assets/agentfeeds-demo.gif)
+![Agent Feeds interactive session demo](../assets/agentfeeds-demo.gif)
 
 ## Demo flow
 
@@ -33,7 +33,7 @@ Hermes starts with compact stream metadata, not bulky state data.
 What is on Hacker News right now?
 ```
 
-Hermes sees `dev/hackernews-frontpage`, reads it through `agentfeeds streams read`, and answers from the fresh snapshot before web search.
+Hermes sees `dev/hackernews-frontpage`, reads it through `python scripts/agentfeeds.py streams read`, and answers from the fresh snapshot before web search.
 
 ### 3. Personal ops awareness
 
@@ -41,7 +41,7 @@ Hermes sees `dev/hackernews-frontpage`, reads it through `agentfeeds streams rea
 Is my Hermes gateway healthy?
 ```
 
-Hermes sees `ops/hermes-gateway-health`, reads it through `agentfeeds streams read`, and reports the current status.
+Hermes sees `ops/hermes-gateway-health`, reads it through `python scripts/agentfeeds.py streams read`, and reports the current status.
 
 ### 4. Market and weather snapshots
 

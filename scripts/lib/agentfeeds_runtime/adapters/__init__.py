@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from agentfeeds.adapters.http import fetch_json
-from agentfeeds.adapters.ical import fetch_ical
-from agentfeeds.adapters.local_command import fetch_local_command
-from agentfeeds.adapters.local_file import fetch_local_file
-from agentfeeds.adapters.rss import fetch_rss
+from agentfeeds_runtime.adapters.http import fetch_json
+from agentfeeds_runtime.adapters.ical import fetch_ical
+from agentfeeds_runtime.adapters.local_command import fetch_local_command
+from agentfeeds_runtime.adapters.local_file import fetch_local_file
+from agentfeeds_runtime.adapters.rss import fetch_rss
 
 
 def run_adapter(stream: dict, parameters: dict, *, validate_parameters, source_uri_for, substitute) -> tuple[str, list[dict]]:

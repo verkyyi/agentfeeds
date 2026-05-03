@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import feedparser
 
-from agentfeeds.adapters.common import envelope, stable_hash
+from agentfeeds_runtime.adapters.common import envelope, stable_hash
 
 
 def fetch_rss(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:

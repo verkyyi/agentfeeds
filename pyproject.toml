@@ -1,8 +1,8 @@
 [project]
-name = "agentfeeds"
+name = "agentfeeds-skill"
 version = "0.1.0"
 description = "Local-first ambient context streams for Hermes and personal agents"
-readme = "README.md"
+readme = "SKILL.md"
 requires-python = ">=3.11"
 license = "MIT"
 dependencies = [
@@ -15,17 +15,18 @@ dependencies = [
 ]
 
 [project.scripts]
-agentfeeds = "agentfeeds.commands:main"
-agentfeeds-fetch = "agentfeeds.fetcher:main"
-agentfeeds-install-poll = "agentfeeds.polling.install:main"
-agentfeeds-uninstall-poll = "agentfeeds.polling.uninstall:main"
+agentfeeds = "agentfeeds_runtime.commands:main"
+agentfeeds-fetch = "agentfeeds_runtime.fetcher:main"
+agentfeeds-install-poll = "agentfeeds_runtime.polling.install:main"
+agentfeeds-uninstall-poll = "agentfeeds_runtime.polling.uninstall:main"
 
 [build-system]
 requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["agentfeeds*"]
+where = ["scripts/lib"]
+include = ["agentfeeds_runtime*"]
 
 [dependency-groups]
 dev = [

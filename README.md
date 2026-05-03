@@ -8,7 +8,7 @@ Personal agents often start sessions blind: users repeat project context, paste 
 
 ## Quick Demo
 
-![Agent Feeds interactive session demo](docs/assets/agentfeeds-demo.gif)
+![Agent Feeds interactive session demo](assets/agentfeeds-demo.gif)
 
 Install the standalone Hermes plugin:
 
@@ -41,14 +41,29 @@ Refresh Project notes and summarize it.
 
 What happens under the hood:
 
-- `agentfeeds` manages active subscriptions and template discovery
-- `agentfeeds-fetch` refreshes subscribed streams into local JSON state
-- agents use `agentfeeds streams ...` to list and read compact relevant data
+- `python scripts/agentfeeds.py` manages active subscriptions and template discovery
+- `python scripts/agentfeeds_fetch.py` refreshes subscribed streams into local JSON state
+- agents use `python scripts/agentfeeds.py streams ...` to list and read compact relevant data
 - raw files stay inspectable for debugging, but they are not the normal agent interface
 
 Agent Feeds is not long-term memory. It is a refreshable, local-first context layer for fresh, inspectable ambient context that lives on your machine.
 
-This repository is also an agent-agnostic Agent Skill. Skills-compatible agents can load [SKILL.md](SKILL.md) for portable instructions on using the Agent Feeds CLI and local state files.
+This repository is also an agent-agnostic Agent Skill. Skills-compatible agents can load [SKILL.md](SKILL.md) for portable instructions on using the Agent Feeds CLI and subscribed stream data.
+
+## Skill Runtime Setup
+
+From this skill checkout, install the local Python runtime once:
+
+```bash
+python scripts/setup.py
+```
+
+Then agents can drive the bundled scripts directly:
+
+```bash
+python scripts/agentfeeds.py --help
+python scripts/agentfeeds_fetch.py --help
+```
 
 ## Why It Exists
 
@@ -120,10 +135,10 @@ Restart Hermes after installation.
 
 Agent Feeds stores local state under `~/.agentfeeds/`, but agents should normally drive it through the CLI:
 
-- `agentfeeds templates ...` discovers reusable feed definitions
-- `agentfeeds subscribe ...` creates active subscriptions
-- `agentfeeds streams ...` lists and reads refreshed data
-- `agentfeeds-fetch ...` refreshes subscriptions
+- `python scripts/agentfeeds.py templates ...` discovers reusable feed definitions
+- `python scripts/agentfeeds.py subscribe ...` creates active subscriptions
+- `python scripts/agentfeeds.py streams ...` lists and reads refreshed data
+- `python scripts/agentfeeds_fetch.py ...` refreshes subscriptions
 
 Full data stays on disk and is read only when relevant. The storage layout remains inspectable, but it should be a debug and authoring surface rather than ambient prompt context.
 
@@ -146,10 +161,10 @@ Show me the current Hacker News front page from Agent Feeds.
 Or inspect the same flow directly:
 
 ```bash
-agentfeeds templates search hacker
-agentfeeds subscribe dev/hackernews-frontpage
-agentfeeds streams list
-agentfeeds streams read dev/hackernews-frontpage --json
+python scripts/agentfeeds.py templates search hacker
+python scripts/agentfeeds.py subscribe dev/hackernews-frontpage
+python scripts/agentfeeds.py streams list
+python scripts/agentfeeds.py streams read dev/hackernews-frontpage --json
 ```
 
 For a private local source:
@@ -190,8 +205,8 @@ Catalog entries are templates. Active subscriptions are concrete instances. For 
 Catalog loading can be pointed at a local checkout or alternate raw source:
 
 ```bash
-AGENTFEEDS_CATALOG_DIR=~/projects/agentfeeds-catalog agentfeeds-fetch --update-catalog
-AGENTFEEDS_CATALOG_BASE_URL=https://raw.githubusercontent.com/verkyyi/agentfeeds-catalog/main agentfeeds-fetch --update-catalog
+AGENTFEEDS_CATALOG_DIR=~/projects/agentfeeds-catalog python scripts/agentfeeds_fetch.py --update-catalog
+AGENTFEEDS_CATALOG_BASE_URL=https://raw.githubusercontent.com/verkyyi/agentfeeds-catalog/main python scripts/agentfeeds_fetch.py --update-catalog
 ```
 
 ## Background Refresh
@@ -199,13 +214,13 @@ AGENTFEEDS_CATALOG_BASE_URL=https://raw.githubusercontent.com/verkyyi/agentfeeds
 Install background polling when you want subscriptions to stay warm without waiting for Hermes to refresh them during a conversation:
 
 ```bash
-agentfeeds-install-poll
+python scripts/polling/install.py
 ```
 
 Uninstall it with:
 
 ```bash
-agentfeeds-uninstall-poll
+python scripts/polling/uninstall.py
 ```
 
 On macOS this installs a LaunchAgent at `~/Library/LaunchAgents/dev.agentfeeds.fetch.plist`. On Linux it installs a tagged crontab block. The interval is the shortest configured subscription interval, floored at 5 minutes.
@@ -223,8 +238,8 @@ Agents should:
 - check existing templates first
 - draft template YAML under `~/.agentfeeds/templates/streams/`
 - draft or reuse a schema under `~/.agentfeeds/templates/schemas/event-types/`
-- validate the template with `agentfeeds templates validate`
-- test it once with `agentfeeds templates test <template-id> key=value`
+- validate the template with `python scripts/agentfeeds.py templates validate`
+- test it once with `python scripts/agentfeeds.py templates test <template-id> key=value`
 - smoke-test it with a temporary Agent Feeds root before touching your live subscriptions
 
 Command-based templates are supported through `local_command`, but agents should only create them for commands you explicitly approve. They run without a shell, with timeout and output limits. They can capture one command snapshot or parse JSON output into event items.
@@ -236,15 +251,15 @@ For personal agents, prefer local/private read-only templates before adding publ
 You can inspect Agent Feeds directly when needed:
 
 ```bash
-agentfeeds streams list
-agentfeeds streams search project
-agentfeeds templates search local
-agentfeeds templates adapters
-agentfeeds templates list
-agentfeeds templates path
-agentfeeds templates scaffold json_http personal/tasks
-agentfeeds templates test personal/tasks url=https://example.com/tasks.json
-agentfeeds templates validate
+python scripts/agentfeeds.py streams list
+python scripts/agentfeeds.py streams search project
+python scripts/agentfeeds.py templates search local
+python scripts/agentfeeds.py templates adapters
+python scripts/agentfeeds.py templates list
+python scripts/agentfeeds.py templates path
+python scripts/agentfeeds.py templates scaffold json_http personal/tasks
+python scripts/agentfeeds.py templates test personal/tasks url=https://example.com/tasks.json
+python scripts/agentfeeds.py templates validate
 ```
 
 These commands are mainly for debugging. The normal UX is to ask Hermes for the outcome you want.

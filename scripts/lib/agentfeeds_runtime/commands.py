@@ -17,8 +17,8 @@ import feedparser
 import requests
 import yaml
 
-from agentfeeds import fetcher as fetch
-from agentfeeds.constants import REQUEST_TIMEOUT_SECONDS
+from agentfeeds_runtime import fetcher as fetch
+from agentfeeds_runtime.constants import REQUEST_TIMEOUT_SECONDS
 
 
 INSTANCE_ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9][a-z0-9-]*$")
@@ -744,7 +744,7 @@ def cmd_templates_scaffold(args: argparse.Namespace) -> int:
         print(f"schema: built-in {stream['schema_url']}")
     else:
         print(f"wrote: {schema_path}")
-    print("Next: edit the draft, then run `agentfeeds templates validate`.")
+    print("Next: edit the draft, then run `python scripts/agentfeeds.py templates validate`.")
     return 0
 
 

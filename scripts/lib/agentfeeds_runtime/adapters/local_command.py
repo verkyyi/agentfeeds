@@ -7,8 +7,8 @@ import os
 import subprocess
 from pathlib import Path
 
-from agentfeeds.adapters.common import envelope, jmespath_search, now_utc, stable_hash
-from agentfeeds.constants import COMMAND_MAX_OUTPUT_BYTES, COMMAND_TIMEOUT_SECONDS
+from agentfeeds_runtime.adapters.common import envelope, jmespath_search, now_utc, stable_hash
+from agentfeeds_runtime.constants import COMMAND_MAX_OUTPUT_BYTES, COMMAND_TIMEOUT_SECONDS
 
 
 def _decode_limited(raw: bytes, limit: int) -> tuple[str, bool]:

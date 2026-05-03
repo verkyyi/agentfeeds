@@ -6,7 +6,7 @@ Use this when introducing Agent Feeds to personal-agent builders, Hermes operato
 
 Agent Feeds is a local-first ambient context layer for personal agents like Hermes.
 
-It lets an agent subscribe to local or public streams, keep JSON state files fresh in the background, and inject only compact stream metadata into sessions. When relevant, the agent reads local state before using web search.
+It lets an agent subscribe to local or public streams, keep JSON stream state fresh in the background, and inspect only compact stream data when relevant before using web search.
 
 Agent Feeds is not memory. It is a refreshable, inspectable file layer for current context.
 
@@ -14,7 +14,7 @@ Agent Feeds is not memory. It is a refreshable, inspectable file layer for curre
 
 I have been building Agent Feeds, a local-first subscription layer for personal agents.
 
-The idea is simple: personal agents need fresh awareness of local and private state, but that state should not be dumped into every prompt. Agent Feeds keeps detailed data on disk under `~/.agentfeeds/state/`, injects only compact stream metadata into Hermes, and lets the agent read the right state file only when it is relevant.
+The idea is simple: personal agents need fresh awareness of local and private state, but that state should not be dumped into every prompt. Agent Feeds keeps detailed data on disk, exposes compact stream metadata to Hermes, and lets the agent read relevant streams through the CLI only when needed.
 
 Current templates include local files, RSS/Atom, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and argv-only local commands. Some templates are ready to subscribe as-is; others take parameters. Local commands can produce either a current snapshot or JSON-derived events.
 
@@ -54,19 +54,19 @@ Refresh Project notes and summarize it.
 Direct CLI inspection:
 
 ```bash
-agentfeeds templates search hacker
-agentfeeds subscribe dev/hackernews-frontpage
-agentfeeds streams list
-agentfeeds streams read dev/hackernews-frontpage --json
+python scripts/agentfeeds.py templates search hacker
+python scripts/agentfeeds.py subscribe dev/hackernews-frontpage
+python scripts/agentfeeds.py streams list
+python scripts/agentfeeds.py streams read dev/hackernews-frontpage --json
 ```
 
 Template authoring smoke test:
 
 ```bash
-agentfeeds templates adapters
-agentfeeds templates scaffold local_command personal/status
-agentfeeds templates validate
-agentfeeds templates test personal/status --json
+python scripts/agentfeeds.py templates adapters
+python scripts/agentfeeds.py templates scaffold local_command personal/status
+python scripts/agentfeeds.py templates validate
+python scripts/agentfeeds.py templates test personal/status --json
 ```
 
 ## Release Notes Draft
@@ -91,7 +91,7 @@ This first release focuses on personal agents, with a standalone Hermes plugin a
 - built-in templates for local files, RSS, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, earthquakes, and ISS location
 - local template authoring tools
 - argv-only local_command adapter for snapshots and JSON-derived event streams
-- template dry-run testing with agentfeeds templates test
+- template dry-run testing with python scripts/agentfeeds.py templates test
 
 The core design is intentionally file-based: detailed state stays in JSON files on disk, and the agent reads it only when relevant.
 

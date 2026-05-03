@@ -9,7 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "docs" / "assets" / "agentfeeds-demo.gif"
+OUT = ROOT / "assets" / "agentfeeds-demo.gif"
 W, H = 1280, 720
 BG = "#071019"
 PANEL = "#0d1724"
@@ -63,7 +63,7 @@ def line_color(line: str) -> str:
         return CYAN
     if stripped.startswith("-"):
         return BLUE
-    if "agentfeeds streams read" in line or "before web search" in line:
+    if "python scripts/agentfeeds.py streams read" in line or "before web search" in line:
         return PINK
     if "fresh" in line.lower() or "local state" in line.lower() or "without web search" in line.lower():
         return CYAN
@@ -105,28 +105,28 @@ SCENES = [
     (
         "Agent Feeds in a Hermes session",
         "The demo is the agent experience, not the CLI.",
-        "A new Hermes session can inspect a compact list of available local streams.\n\nThe user just asks normal questions. Hermes chooses when to run agentfeeds streams read before web search.",
+        "A new Hermes session can inspect a compact list of available local streams.\n\nThe user just asks normal questions. Hermes chooses when to run python scripts/agentfeeds.py streams read before web search.",
         "Agents need feeds: fresh local state, read only when relevant.",
         3600,
     ),
     (
         "Session context injected once",
         "Only a compact map enters the prompt; detailed state stays on disk.",
-        "agentfeeds streams list\n- weather/santa-clara-current: Santa Clara current weather\n- dev/hackernews-frontpage: Hacker News front page\n- finance/quote-btc: BTC quote\n- news/openai-com: OpenAI News\n- ops/hermes-gateway-health: Hermes gateway health\n\nWhen relevant, run agentfeeds streams read <subscription-id> --json before web search.",
+        "python scripts/agentfeeds.py streams list\n- weather/santa-clara-current: Santa Clara current weather\n- dev/hackernews-frontpage: Hacker News front page\n- finance/quote-btc: BTC quote\n- news/openai-com: OpenAI News\n- ops/hermes-gateway-health: Hermes gateway health\n\nWhen relevant, run python scripts/agentfeeds.py streams read <subscription-id> --json before web search.",
         "Compact metadata in prompt. Bulky JSON remains local.",
         5200,
     ),
     (
         "Use case: current news without web search",
         "The user asks naturally; Hermes sees a matching active stream.",
-        "User: What is on Hacker News right now?\n\nHermes: I see a fresh Hacker News front page stream. I’ll run agentfeeds streams read first instead of searching the web.\n\nHermes: Here are the top stories from the local HN snapshot, with scores and links.",
+        "User: What is on Hacker News right now?\n\nHermes: I see a fresh Hacker News front page stream. I’ll run python scripts/agentfeeds.py streams read first instead of searching the web.\n\nHermes: Here are the top stories from the local HN snapshot, with scores and links.",
         "Fresh answers from local state.",
         4300,
     ),
     (
         "Use case: personal ops awareness",
         "Streams can cover private/local status, not just public feeds.",
-        "User: Is my Hermes gateway healthy?\n\nHermes: There is an ops/hermes-gateway-health stream. I’ll inspect it with agentfeeds streams read.\n\nHermes: Gateway is healthy; latest check is fresh. If it were stale, I would refresh that stream before answering.",
+        "User: Is my Hermes gateway healthy?\n\nHermes: There is an ops/hermes-gateway-health stream. I’ll inspect it with python scripts/agentfeeds.py streams read.\n\nHermes: Gateway is healthy; latest check is fresh. If it were stale, I would refresh that stream before answering.",
         "The agent can monitor local/private systems conversationally.",
         4300,
     ),
