@@ -1,6 +1,12 @@
 ---
 name: agentfeeds
 description: Use Agent Feeds for ambient awareness from continuously refreshed local streams under ~/.agentfeeds. Use at session start to install/check background refresh and insert a compact stream brief, and before web search or expensive source-specific queries when a prompt may be covered by changing local context such as RSS/news, GitHub, calendars, weather, local files, personal sources, templates, subscriptions, or subscribed stream state.
+version: 0.1.1
+author: verkyyi
+license: MIT
+metadata:
+  hermes:
+    tags: [Productivity, AI Agents, Personal Context, Local First]
 ---
 
 # Agent Feeds
