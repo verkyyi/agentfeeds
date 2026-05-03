@@ -54,19 +54,19 @@ Refresh Project notes and summarize it.
 Direct CLI inspection:
 
 ```bash
-python scripts/agentfeeds.py templates search hacker
-python scripts/agentfeeds.py subscribe dev/hackernews-frontpage
-python scripts/agentfeeds.py streams list
-python scripts/agentfeeds.py streams read dev/hackernews-frontpage --json
+python3 scripts/agentfeeds.py templates search hacker
+python3 scripts/agentfeeds.py subscribe dev/hackernews-frontpage
+python3 scripts/agentfeeds.py streams list
+python3 scripts/agentfeeds.py streams read dev/hackernews-frontpage --json
 ```
 
 Template authoring smoke test:
 
 ```bash
-python scripts/agentfeeds.py templates adapters
-python scripts/agentfeeds.py templates scaffold local_command personal/status
-python scripts/agentfeeds.py templates validate
-python scripts/agentfeeds.py templates test personal/status --json
+python3 scripts/agentfeeds.py templates adapters
+python3 scripts/agentfeeds.py templates scaffold local_command personal/status
+python3 scripts/agentfeeds.py templates validate
+python3 scripts/agentfeeds.py templates test personal/status --json
 ```
 
 ## Release Notes Draft
@@ -91,7 +91,7 @@ This first release focuses on personal agents, with a standalone Hermes plugin a
 - built-in templates for local files, RSS, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, earthquakes, and ISS location
 - local template authoring tools
 - argv-only local_command adapter for snapshots and JSON-derived event streams
-- template dry-run testing with python scripts/agentfeeds.py templates test
+- template dry-run testing with python3 scripts/agentfeeds.py templates test
 
 The core design is intentionally file-based: detailed state stays in JSON files on disk, and the agent reads it only when relevant.
 

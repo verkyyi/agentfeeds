@@ -7,6 +7,7 @@ import os
 import argparse
 import platform
 import plistlib
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -54,7 +55,7 @@ def fetcher_path() -> str:
     command = shutil.which("agentfeeds-fetch")
     if command:
         return command
-    raise FileNotFoundError("agentfeeds-fetch not found; run `python scripts/setup.py` first")
+    raise FileNotFoundError("agentfeeds-fetch not found; run `python3 scripts/setup.py` first")
 
 
 def install_launchd(root: Path, interval: int, fetcher: str) -> None:
@@ -65,7 +66,7 @@ def install_launchd(root: Path, interval: int, fetcher: str) -> None:
     plist_path = launch_agents / f"{LABEL}.plist"
     payload = {
         "Label": LABEL,
-        "ProgramArguments": [fetcher, "--all"],
+        "ProgramArguments": [fetcher, "--root", str(root), "--all"],
         "StartInterval": interval,
         "RunAtLoad": True,
         "StandardOutPath": str(logs / "poll.out.log"),
@@ -111,7 +112,12 @@ def install_cron(root: Path, interval: int, fetcher: str) -> None:
     minutes = max(interval // 60, 5)
     logs = root / "logs"
     logs.mkdir(parents=True, exist_ok=True)
-    command = f"*/{minutes} * * * * {fetcher} --all >> {logs / 'poll.out.log'} 2>> {logs / 'poll.err.log'}"
+    command = (
+        f"*/{minutes} * * * * "
+        f"{shlex.quote(fetcher)} --root {shlex.quote(str(root))} --all "
+        f">> {shlex.quote(str(logs / 'poll.out.log'))} "
+        f"2>> {shlex.quote(str(logs / 'poll.err.log'))}"
+    )
     existing = without_existing_block(current_crontab())
     new_crontab = "\n".join(line for line in [existing, BEGIN_MARKER, command, END_MARKER, ""] if line)
     subprocess.run(["crontab", "-"], input=new_crontab + "\n", text=True, check=True)
@@ -120,12 +126,14 @@ def install_cron(root: Path, interval: int, fetcher: str) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    return argparse.ArgumentParser(description="Install Agent Feeds background polling")
+    parser = argparse.ArgumentParser(description="Install Agent Feeds background polling")
+    parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="agentfeeds root directory")
+    return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    build_parser().parse_args(argv)
-    root = DEFAULT_ROOT
+    args = build_parser().parse_args(argv)
+    root = args.root.expanduser()
     root.mkdir(parents=True, exist_ok=True)
     interval = poll_interval_seconds(root)
     fetcher = fetcher_path()

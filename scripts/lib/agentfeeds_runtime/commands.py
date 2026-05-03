@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import plistlib
+import platform
 import re
+import subprocess
 import sys
 from collections import Counter
 from datetime import UTC, datetime, timedelta
@@ -19,6 +22,8 @@ import yaml
 
 from agentfeeds_runtime import fetcher as fetch
 from agentfeeds_runtime.constants import REQUEST_TIMEOUT_SECONDS
+from agentfeeds_runtime.polling import install as polling_install
+from agentfeeds_runtime.polling import uninstall as polling_uninstall
 
 
 INSTANCE_ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9][a-z0-9-]*$")
@@ -30,6 +35,9 @@ ADAPTER_KINDS = {
     "rss": "Fetch an RSS or Atom feed as event items.",
     "ical": "Fetch an iCalendar URL as event items.",
 }
+POLLING_LABEL = "dev.agentfeeds.fetch"
+POLLING_BEGIN_MARKER = "# BEGIN Agent Feeds polling"
+POLLING_END_MARKER = "# END Agent Feeds polling"
 
 
 def parse_value(value: str) -> Any:
@@ -555,6 +563,70 @@ def _print_stream_rows(rows: list[dict]) -> None:
         print(f"{row['id']}: {row['title']} [{freshness}, {exists}, updated={row['last_updated'] or 'never'}]")
 
 
+def _brief_entries(root: Path, max_streams: int, include_freshness: bool) -> tuple[list[dict], bool]:
+    rows = _stream_rows(root)
+    entries = []
+    for row in rows[:max_streams]:
+        entry = {"id": row["id"], "title": row["title"]}
+        if include_freshness:
+            entry.update(
+                {
+                    "freshness": "stale" if row["stale"] else "due" if row["due"] else "fresh",
+                    "exists": row["exists"],
+                    "last_updated": row["last_updated"],
+                }
+            )
+        entries.append(entry)
+    return entries, len(rows) > max_streams
+
+
+def render_brief(entries: list[dict], truncated: bool, include_freshness: bool) -> str:
+    lines = ["<agentfeeds>"]
+    if entries:
+        lines.append("Available local streams:")
+        for entry in entries:
+            line = f"- {entry['id']}: {entry['title']}"
+            if include_freshness:
+                line += f" [{entry['freshness']}, updated={entry['last_updated'] or 'never'}]"
+            lines.append(line)
+        if truncated:
+            lines.append("- ...")
+    else:
+        lines.append("No active local streams.")
+    lines.extend(
+        [
+            "",
+            "Background refresh is expected. When relevant, search streams and read matching local state before web search or recomputing source data.",
+            "Use `python3 scripts/agentfeeds.py streams search <topic> --json` and `python3 scripts/agentfeeds.py streams read <subscription-id> --json`.",
+            "</agentfeeds>",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def cmd_brief(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    entries, truncated = _brief_entries(args.root, args.max_streams, args.include_freshness)
+    brief = render_brief(entries, truncated, args.include_freshness)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "brief": brief,
+                    "streams": entries,
+                    "truncated": truncated,
+                    "stable": not args.include_freshness,
+                    "recommended_prompt_slot": "system",
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    print(brief)
+    return 0
+
+
 def cmd_streams_list(args: argparse.Namespace) -> int:
     rows = _stream_rows(args.root)
     if args.json:
@@ -682,6 +754,98 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     return fetch.main(["--root", str(args.root), "--stream", args.subscription_id])
 
 
+def _current_crontab() -> str:
+    try:
+        result = subprocess.run(["crontab", "-l"], check=False, text=True, capture_output=True)
+    except FileNotFoundError:
+        return ""
+    return "" if result.returncode else result.stdout
+
+
+def _cron_block_present(text: str) -> bool:
+    return POLLING_BEGIN_MARKER in text and POLLING_END_MARKER in text
+
+
+def _argv_uses_root(argv: object, root: Path) -> bool:
+    if not isinstance(argv, list):
+        return False
+    items = [str(item) for item in argv]
+    if "--root" in items:
+        index = items.index("--root")
+        return index + 1 < len(items) and Path(items[index + 1]).expanduser() == root
+    return root == fetch.DEFAULT_ROOT
+
+
+def _cron_block_uses_root(text: str, root: Path) -> bool:
+    if not _cron_block_present(text):
+        return False
+    if "--root" in text:
+        return str(root) in text
+    return root == fetch.DEFAULT_ROOT
+
+
+def _polling_status(root: Path) -> dict:
+    system = platform.system()
+    status: dict[str, object] = {
+        "root": str(root),
+        "platform": system,
+        "installed": False,
+        "method": "unsupported",
+        "fetcher": None,
+        "logs": str(root / "logs"),
+    }
+    try:
+        status["fetcher"] = polling_install.fetcher_path()
+        status["fetcher_available"] = True
+    except Exception as exc:  # noqa: BLE001 - status should be diagnostic, not fatal.
+        status["fetcher_available"] = False
+        status["fetcher_error"] = str(exc)
+
+    if system == "Darwin":
+        plist_path = Path.home() / "Library" / "LaunchAgents" / f"{POLLING_LABEL}.plist"
+        installed = False
+        if plist_path.exists():
+            try:
+                payload = plistlib.loads(plist_path.read_bytes())
+                installed = _argv_uses_root(payload.get("ProgramArguments"), root)
+            except Exception:
+                installed = root == fetch.DEFAULT_ROOT
+        status.update({"method": "launchd", "installed": installed, "path": str(plist_path)})
+        return status
+    if system in {"Linux", "FreeBSD"}:
+        text = _current_crontab()
+        status.update({"method": "cron", "installed": _cron_block_uses_root(text, root)})
+        return status
+    return status
+
+
+def _print_polling_status(status: dict) -> None:
+    print(f"Polling: {'installed' if status['installed'] else 'not installed'}")
+    print(f"Method: {status['method']}")
+    print(f"Root: {status['root']}")
+    print(f"Fetcher: {status.get('fetcher') or status.get('fetcher_error') or 'unknown'}")
+    print(f"Logs: {status['logs']}")
+
+
+def cmd_polling_status(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    status = _polling_status(args.root)
+    if args.json:
+        print(json.dumps(status, indent=2, sort_keys=True))
+        return 0
+    _print_polling_status(status)
+    return 0
+
+
+def cmd_polling_install(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    return polling_install.main(["--root", str(args.root)])
+
+
+def cmd_polling_uninstall(_args: argparse.Namespace) -> int:
+    return polling_uninstall.main([])
+
+
 def cmd_templates_list(args: argparse.Namespace) -> int:
     fetch.ensure_root(args.root)
     index = fetch.load_catalog_index(args.root)
@@ -744,7 +908,7 @@ def cmd_templates_scaffold(args: argparse.Namespace) -> int:
         print(f"schema: built-in {stream['schema_url']}")
     else:
         print(f"wrote: {schema_path}")
-    print("Next: edit the draft, then run `python scripts/agentfeeds.py templates validate`.")
+    print("Next: edit the draft, then run `python3 scripts/agentfeeds.py templates validate`.")
     return 0
 
 
@@ -795,6 +959,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--root", type=Path, default=fetch.DEFAULT_ROOT, help="agentfeeds root directory")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    brief = subparsers.add_parser("brief", help="print compact stable stream context for prompt injection")
+    brief.add_argument("--max-streams", type=int, default=20)
+    brief.add_argument("--include-freshness", action="store_true", help="include volatile freshness metadata")
+    brief.add_argument("--json", action="store_true")
+    brief.set_defaults(func=cmd_brief)
+
     subscribe = subparsers.add_parser("subscribe", help="add a subscription")
     subscribe.add_argument("template_id")
     subscribe.add_argument("parameters", nargs="*", help="template parameters as key=value")
@@ -814,6 +984,14 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("subscription_id", nargs="?")
     refresh.add_argument("--all", action="store_true")
     refresh.set_defaults(func=cmd_refresh)
+
+    polling = subparsers.add_parser("polling", help="manage required background refresh")
+    polling_subparsers = polling.add_subparsers(dest="polling_command", required=True)
+    polling_status = polling_subparsers.add_parser("status", help="show background refresh status")
+    polling_status.add_argument("--json", action="store_true")
+    polling_status.set_defaults(func=cmd_polling_status)
+    polling_subparsers.add_parser("install", help="install or update background refresh").set_defaults(func=cmd_polling_install)
+    polling_subparsers.add_parser("uninstall", help="remove background refresh").set_defaults(func=cmd_polling_uninstall)
 
     streams = subparsers.add_parser("streams", help="inspect and read active streams")
     stream_subparsers = streams.add_subparsers(dest="stream_command", required=True)

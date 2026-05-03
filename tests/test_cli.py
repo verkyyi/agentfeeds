@@ -188,6 +188,73 @@ def test_cli_streams_list_search_show_and_read(tmp_path, capsys):
     assert read["data"]["content"] == "# Project Notes\n\nLocal context.\n"
 
 
+def test_cli_brief_outputs_compact_stable_prompt_context(tmp_path, capsys):
+    source = tmp_path / "Project Notes.md"
+    source.write_text("# Project Notes\n\nLocal context.\n", encoding="utf-8")
+    root = tmp_path / "agentfeeds"
+
+    assert cli.main([
+        "--root",
+        str(root),
+        "subscribe",
+        "local/file",
+        f"path={source}",
+    ]) == 0
+    capsys.readouterr()
+
+    assert cli.main(["--root", str(root), "brief"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("<agentfeeds>\nAvailable local streams:")
+    assert "- local/project-notes-md: Project Notes.md" in out
+    assert "Background refresh is expected" in out
+    assert "last_updated" not in out
+    assert "updated=" not in out
+
+    assert cli.main(["--root", str(root), "brief", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["stable"] is True
+    assert payload["recommended_prompt_slot"] == "system"
+    assert payload["streams"] == [{"id": "local/project-notes-md", "title": "Project Notes.md"}]
+
+
+def test_cli_brief_can_include_freshness_when_requested(tmp_path, capsys):
+    source = tmp_path / "Project Notes.md"
+    source.write_text("# Project Notes\n", encoding="utf-8")
+    root = tmp_path / "agentfeeds"
+
+    assert cli.main(["--root", str(root), "subscribe", "local/file", f"path={source}"]) == 0
+    capsys.readouterr()
+
+    assert cli.main(["--root", str(root), "brief", "--include-freshness", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["stable"] is False
+    assert payload["streams"][0]["freshness"] in {"fresh", "due", "stale"}
+    assert payload["streams"][0]["exists"] is True
+    assert payload["streams"][0]["last_updated"]
+
+
+def test_cli_polling_status_reports_cron_block(tmp_path, capsys, monkeypatch):
+    monkeypatch.setattr(cli.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(cli.polling_install, "fetcher_path", lambda: "/tmp/agentfeeds-fetch")
+    monkeypatch.setattr(
+        cli,
+        "_current_crontab",
+        lambda: "\n".join(
+            [
+                cli.POLLING_BEGIN_MARKER,
+                f"*/5 * * * * agentfeeds-fetch --root {tmp_path} --all",
+                cli.POLLING_END_MARKER,
+            ]
+        ),
+    )
+
+    assert cli.main(["--root", str(tmp_path), "polling", "status", "--json"]) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["installed"] is True
+    assert status["method"] == "cron"
+    assert status["fetcher_available"] is True
+
+
 def test_cli_template_helpers(tmp_path, capsys):
     assert cli.main(["--root", str(tmp_path), "templates", "path"]) == 0
     assert capsys.readouterr().out.strip() == str(tmp_path / "templates")

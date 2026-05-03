@@ -1,10 +1,10 @@
 # Agent Feeds Skill
 
-Agent Feeds is an Agent Skill that gives compatible agents a local-first feed layer: discover feed templates, subscribe to sources, refresh them in the background, and answer from compact local stream state instead of making the user repeat context.
+Agent Feeds is an Agent Skill that gives compatible agents a local-first ambient context layer: discover feed templates, subscribe to sources, keep them refreshed in the background, and answer from compact local stream state instead of making the user repeat context or rerunning the same data pipeline.
 
 The primary audience for this repository is agent operators who want to install, publish, or audit the skill bundle. The Python package and CLI are implementation details for the agent to drive.
 
-**Agents need feeds, not just memory.** Memory is for durable facts. Feeds are for fresh, timestamped state: project notes, RSS/news, GitHub issues and releases, calendars, weather, local dashboards, or operator-approved command output.
+**Agents need feeds, not just memory.** Memory is for durable facts. Feeds are for fresh, incoming, timestamped state: project notes, RSS/news, GitHub issues and releases, calendars, weather, local dashboards, personal sources, or operator-approved command output.
 
 ## Quick Demo
 
@@ -60,25 +60,41 @@ The unpacked skill folder contains:
 From the skill root, run setup once:
 
 ```bash
-python scripts/setup.py
+python3 scripts/setup.py
 ```
 
 This installs the bundled runtime into `~/.agentfeeds/runtime-venv/`. The script entry points automatically re-exec through that environment after setup:
 
 ```bash
-python scripts/agentfeeds.py --help
-python scripts/agentfeeds_fetch.py --help
+python3 scripts/agentfeeds.py --help
+python3 scripts/agentfeeds_fetch.py --help
 ```
+
+Background refresh is expected for normal use:
+
+```bash
+python3 scripts/agentfeeds.py polling status
+python3 scripts/agentfeeds.py polling install
+```
+
+Agents should also generate the compact session brief and place it into the most stable prompt/context slot their host provides, preferably a system-level slot:
+
+```bash
+python3 scripts/agentfeeds.py brief
+```
+
+The default brief is intentionally compact and stable for prompt caching. It lists active stream IDs and titles without volatile timestamps.
 
 ## What The Skill Enables
 
 Agent Feeds gives the agent a small local control surface:
 
-- `python scripts/agentfeeds.py templates ...` discovers reusable feed definitions
-- `python scripts/agentfeeds.py subscribe ...` creates active subscriptions
-- `python scripts/agentfeeds.py streams ...` lists, searches, shows, and reads refreshed data
-- `python scripts/agentfeeds_fetch.py ...` updates the catalog and refreshes subscriptions
-- `python scripts/polling/install.py` keeps subscriptions warm in the background
+- `python3 scripts/agentfeeds.py templates ...` discovers reusable feed definitions
+- `python3 scripts/agentfeeds.py subscribe ...` creates active subscriptions
+- `python3 scripts/agentfeeds.py streams ...` lists, searches, shows, and reads refreshed data
+- `python3 scripts/agentfeeds_fetch.py ...` updates the catalog and refreshes subscriptions
+- `python3 scripts/agentfeeds.py polling ...` keeps subscriptions warm in the background
+- `python3 scripts/agentfeeds.py brief` emits compact stable context for session-start prompt insertion
 
 Runtime state lives under `~/.agentfeeds/`, but agents should normally use the CLI instead of reading or writing storage files directly. The file layout remains inspectable for debugging and local template authoring.
 
@@ -147,22 +163,28 @@ Current built-in templates include:
 Catalog loading can be pointed at a local checkout or alternate raw source:
 
 ```bash
-AGENTFEEDS_CATALOG_DIR=~/projects/agentfeeds-catalog python scripts/agentfeeds_fetch.py --update-catalog
-AGENTFEEDS_CATALOG_BASE_URL=https://raw.githubusercontent.com/verkyyi/agentfeeds-catalog/main python scripts/agentfeeds_fetch.py --update-catalog
+AGENTFEEDS_CATALOG_DIR=~/projects/agentfeeds-catalog python3 scripts/agentfeeds_fetch.py --update-catalog
+AGENTFEEDS_CATALOG_BASE_URL=https://raw.githubusercontent.com/verkyyi/agentfeeds-catalog/main python3 scripts/agentfeeds_fetch.py --update-catalog
 ```
 
 ## Background Refresh
 
-Install background polling when you want subscriptions to stay warm without waiting for the agent to refresh them during a conversation:
+Install background polling so subscriptions stay warm without waiting for the agent to refresh them during a conversation:
 
 ```bash
-python scripts/polling/install.py
+python3 scripts/agentfeeds.py polling install
 ```
 
-Uninstall it with:
+Check it with:
 
 ```bash
-python scripts/polling/uninstall.py
+python3 scripts/agentfeeds.py polling status
+```
+
+Uninstall it only when you no longer want ambient refresh:
+
+```bash
+python3 scripts/agentfeeds.py polling uninstall
 ```
 
 On macOS this installs a LaunchAgent at `~/Library/LaunchAgents/dev.agentfeeds.fetch.plist`. On Linux it installs a tagged crontab block. The interval is the shortest configured subscription interval, floored at 5 minutes.
@@ -185,7 +207,7 @@ Restart Hermes after installation.
 This repo is the source tree for the skill. Release artifacts should be built as portable skill bundles:
 
 ```bash
-python scripts/bundle/build_skill_bundle.py --output dist/agentfeeds-skill-v0.1.0.zip
+python3 scripts/bundle/build_skill_bundle.py --output dist/agentfeeds-skill-v0.1.0.zip
 ```
 
 The bundle intentionally includes only the skill surface and runtime files needed by agents. Repo-only docs, tests, build outputs, and caches are excluded.

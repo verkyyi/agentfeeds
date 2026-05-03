@@ -64,7 +64,7 @@ The user's active subscriptions and state live under `~/.agentfeeds`. Detailed d
 
 ### Compact By Default
 
-Hermes should not carry every subscribed data source in every prompt. The injected context should only include a compact list of available streams. The agent reads detailed stream data through the CLI only when relevant.
+Hermes should not carry every subscribed data source in every prompt. The injected context should come from `python3 scripts/agentfeeds.py brief`: a compact, stable list of available streams designed for system-level prompt/context slots and prompt caching. The agent reads detailed stream data through the CLI only when relevant.
 
 ### Agent-Orchestrated
 
@@ -77,6 +77,10 @@ Everything important is plain files: subscription YAML, catalog Markdown, templa
 ### Fast To Re-Onboard
 
 A new Hermes session should quickly learn what local streams exist by reading compact metadata, then answer from already-refreshed state when possible.
+
+### Warm By Default
+
+Background refresh is expected for normal use. The agent should try to verify or install polling at session start, and should report degraded ambient awareness when the host scheduler is unavailable.
 
 ### Extensible By Operators
 
@@ -111,11 +115,13 @@ Templates are for discovery. Subscriptions are active context.
 
 Stream data is the detailed JSON payload that Hermes reads when the user asks a related question.
 
-Agents should read it through `python scripts/agentfeeds.py streams read <subscription-id> --json`. The underlying state files remain timestamped, structured, and inspectable on disk for debugging.
+Agents should read it through `python3 scripts/agentfeeds.py streams read <subscription-id> --json`. The underlying state files remain timestamped, structured, and inspectable on disk for debugging.
 
 ### Active Stream Map
 
-`python scripts/agentfeeds.py streams list` and `python scripts/agentfeeds.py streams search` provide the compact active-stream map. Hermes uses that map to locate relevant subscribed context without loading all data into the prompt.
+`python3 scripts/agentfeeds.py streams list` and `python3 scripts/agentfeeds.py streams search` provide the compact active-stream map. Hermes uses that map to locate relevant subscribed context without loading all data into the prompt.
+
+`python3 scripts/agentfeeds.py brief` provides the stable session-start prompt surface. By default it avoids timestamps and volatile freshness fields so repeated sessions can benefit from model-side prompt caching.
 
 ### Adapter
 
@@ -253,10 +259,10 @@ Can Agent Feeds subscribe to my SQLite task database? If not, draft a template.
 The CLI exists for inspection, debugging, and agent orchestration:
 
 ```bash
-python scripts/agentfeeds.py templates search local
-python scripts/agentfeeds.py subscribe local/file path=~/notes/project.md --title "Project notes"
-python scripts/agentfeeds.py streams list
-python scripts/agentfeeds.py templates test personal/tasks --json
+python3 scripts/agentfeeds.py templates search local
+python3 scripts/agentfeeds.py subscribe local/file path=~/notes/project.md --title "Project notes"
+python3 scripts/agentfeeds.py streams list
+python3 scripts/agentfeeds.py templates test personal/tasks --json
 ```
 
 Users should not need to memorize these commands for normal operation.

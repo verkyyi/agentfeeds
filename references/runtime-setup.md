@@ -3,7 +3,7 @@
 Run setup from the skill root before doing real work from a fresh checkout:
 
 ```bash
-python scripts/setup.py
+python3 scripts/setup.py
 ```
 
 The setup script installs an editable Python runtime into:
@@ -15,8 +15,8 @@ The setup script installs an editable Python runtime into:
 The script wrappers re-exec through that virtual environment when it exists:
 
 ```bash
-python scripts/agentfeeds.py --help
-python scripts/agentfeeds_fetch.py --help
+python3 scripts/agentfeeds.py --help
+python3 scripts/agentfeeds_fetch.py --help
 ```
 
 If Python cannot create a venv with `pip`, `scripts/setup.py` falls back to `uv pip install` when `uv` is available. If both `pip` and `uv` are missing, install one of them and rerun setup.
@@ -29,3 +29,18 @@ agentfeeds-fetch --help
 ```
 
 For portable skill usage, prefer the bundled scripts.
+
+After setup, verify or install background refresh:
+
+```bash
+python3 scripts/agentfeeds.py polling status --json
+python3 scripts/agentfeeds.py polling install
+```
+
+At session start, generate the compact prompt brief:
+
+```bash
+python3 scripts/agentfeeds.py brief
+```
+
+Use the default brief for stable prompt/context slots. It intentionally avoids volatile timestamps; use `--include-freshness` only for freshness debugging.

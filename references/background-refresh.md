@@ -1,24 +1,32 @@
 # Background Refresh
 
-Most agent flows should refresh explicitly:
+Background refresh is required for normal Agent Feeds use. It keeps subscriptions warm between conversations so the agent can answer from local state instead of rerunning source-specific fetching, searching, querying, or processing on demand.
+
+Check scheduler status:
 
 ```bash
-python scripts/agentfeeds_fetch.py --stream <subscription-id>
-python scripts/agentfeeds_fetch.py --all
+python3 scripts/agentfeeds.py polling status --json
 ```
 
-Install background polling only when the user asks for subscriptions to stay warm between conversations:
+Install or update background polling:
 
 ```bash
-python scripts/polling/install.py
+python3 scripts/agentfeeds.py polling install
 ```
 
-Uninstall polling:
+Uninstall polling only when the user no longer wants ambient refresh:
 
 ```bash
-python scripts/polling/uninstall.py
+python3 scripts/agentfeeds.py polling uninstall
 ```
 
 On macOS, polling uses launchd. On Linux and FreeBSD, polling uses a tagged crontab block. The runtime computes the shortest configured subscription interval and floors it at 5 minutes.
 
-Do not install or uninstall polling without explicit user intent because it changes host scheduler state.
+Agents should try to verify or install polling at session start. If the scheduler is unsupported or unavailable, report that Agent Feeds can still refresh explicitly but ambient refresh is degraded.
+
+Explicit refresh remains useful for immediate freshness:
+
+```bash
+python3 scripts/agentfeeds_fetch.py --stream <subscription-id>
+python3 scripts/agentfeeds_fetch.py --all
+```

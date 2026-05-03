@@ -5,7 +5,7 @@ This repository includes development files for tests, docs, packaging, and GitHu
 Build the publishable bundle from the repo root:
 
 ```bash
-python scripts/bundle/build_skill_bundle.py
+python3 scripts/bundle/build_skill_bundle.py
 ```
 
 The bundle should include:

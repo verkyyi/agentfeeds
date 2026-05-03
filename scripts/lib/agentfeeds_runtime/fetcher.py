@@ -570,7 +570,7 @@ def regenerate_catalog(root: Path) -> None:
     lines = [
         "# Agent Feeds - Active Subscriptions",
         "",
-        "This file lists data streams currently subscribed. Prefer `python scripts/agentfeeds.py streams read <subscription-id> --json` for normal agent access.",
+        "This file lists data streams currently subscribed. Prefer `python3 scripts/agentfeeds.py streams read <subscription-id> --json` for normal agent access.",
         "",
     ]
     state_entries = []

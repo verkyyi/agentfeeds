@@ -5,27 +5,27 @@ Use local templates when no built-in template fits a private file, dashboard, AP
 Start by checking built-ins:
 
 ```bash
-python scripts/agentfeeds.py templates search <topic>
-python scripts/agentfeeds.py templates show <template-id>
+python3 scripts/agentfeeds.py templates search <topic>
+python3 scripts/agentfeeds.py templates show <template-id>
 ```
 
 List supported adapter kinds:
 
 ```bash
-python scripts/agentfeeds.py templates adapters
+python3 scripts/agentfeeds.py templates adapters
 ```
 
 Scaffold a draft:
 
 ```bash
-python scripts/agentfeeds.py templates scaffold <adapter-kind> <template-id>
+python3 scripts/agentfeeds.py templates scaffold <adapter-kind> <template-id>
 ```
 
 The scaffold command prints the generated file paths. Edit the template YAML, then validate and dry-run it:
 
 ```bash
-python scripts/agentfeeds.py templates validate
-python scripts/agentfeeds.py templates test <template-id> key=value
+python3 scripts/agentfeeds.py templates validate
+python3 scripts/agentfeeds.py templates test <template-id> key=value
 ```
 
 Local templates live under the Agent Feeds runtime root:
