@@ -80,13 +80,13 @@ The agent should handle template discovery, subscription setup, refreshes, and c
 Download the latest skill bundle from the bundle release and unpack it into your agent's skills directory:
 
 ```text
-https://github.com/verkyyi/agentfeeds/releases/tag/skill-v0.1.0
+https://github.com/verkyyi/agentfeeds/releases/tag/skill-v0.1.1
 ```
 
 The release asset is:
 
 ```text
-agentfeeds-skill-v0.1.0.zip
+agentfeeds-skill-v0.1.1.zip
 ```
 
 The unpacked skill folder contains:
@@ -271,7 +271,7 @@ Restart Hermes after installation.
 This repo is the source tree for the skill. Release artifacts should be built as portable skill bundles:
 
 ```bash
-python3 scripts/bundle/build_skill_bundle.py --output dist/agentfeeds-skill-v0.1.0.zip
+python3 scripts/bundle/build_skill_bundle.py --output dist/agentfeeds-skill-v0.1.1.zip
 ```
 
 The bundle intentionally includes only the skill surface, frozen catalog snapshot, and runtime files needed by agents. Repo-only docs, tests, build outputs, and caches are excluded.
