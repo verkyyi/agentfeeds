@@ -1,0 +1,83 @@
+{
+  "skill_name": "agentfeeds",
+  "evals": [
+    {
+      "id": "session-start-brief-and-health",
+      "prompt": "Start this session with Agent Feeds set up correctly. I want you to make the ambient context available to the model in the right prompt slot if possible, but don't dump raw state files into the conversation.",
+      "expected_output": "The agent checks whether the bundled CLI works, installs/checks background polling, checks stream health, generates the stable brief, and explains that the brief should go in a system-level or persistent prompt slot when the host supports it. It does not read raw ~/.agentfeeds state files or include volatile full stream data in the prompt.",
+      "assertions": [
+        "The agent runs or proposes `python3 scripts/agentfeeds.py polling status --json` before assuming background refresh is installed.",
+        "The agent runs or proposes `python3 scripts/agentfeeds.py streams health --json` to detect missing, stale, or failing streams.",
+        "The agent runs or proposes `python3 scripts/agentfeeds.py brief` for compact session-start context.",
+        "The answer says the brief belongs in a system-level or persistent prompt/context slot when available.",
+        "The agent does not read raw files under `~/.agentfeeds/state/` as the normal session-start path."
+      ]
+    },
+    {
+      "id": "answer-from-local-state-before-web",
+      "prompt": "Before searching the web, check whether Agent Feeds already knows anything about Alice and the launch brief. Use local subscribed state if it is available.",
+      "expected_output": "The agent searches local Agent Feeds state for Alice and launch brief, reads matching non-stale stream data if found, and answers from that local state. It only falls back to web/source-specific tools if no relevant local state exists or the stream is stale and cannot refresh.",
+      "files": [
+        "evals/files/project-notes.md"
+      ],
+      "assertions": [
+        "The agent uses `python3 scripts/agentfeeds.py search <topic> --json` rather than only `streams search` for content lookup.",
+        "If a match is found, the agent reads the matching subscription with `python3 scripts/agentfeeds.py streams read <subscription-id> --limit 20 --json` before answering.",
+        "The answer avoids web search when non-stale local Agent Feeds state covers the question.",
+        "The answer distinguishes local Agent Feeds state from durable memory.",
+        "The agent does not hand-read or edit Agent Feeds state files directly."
+      ]
+    },
+    {
+      "id": "subscribe-using-built-in-template",
+      "prompt": "Subscribe my project notes file at evals/files/project-notes.md as Project notes, then tell me what you set up.",
+      "expected_output": "The agent searches templates, chooses the built-in `local/file` template instead of authoring a new template, subscribes with the file path and title, checks stream health or reads the stream once, and reports the concrete subscription created.",
+      "files": [
+        "evals/files/project-notes.md"
+      ],
+      "assertions": [
+        "The agent checks built-in templates before creating a local template.",
+        "The agent uses the built-in `local/file` template for the Markdown file.",
+        "The subscription command includes `path=evals/files/project-notes.md` or an equivalent resolved path and `--title \"Project notes\"`.",
+        "The agent validates the result with `streams health --json`, `streams read`, or an equivalent Agent Feeds CLI check.",
+        "The agent does not scaffold a new template for this common local-file source."
+      ]
+    },
+    {
+      "id": "template-authoring-only-after-built-ins",
+      "prompt": "Can Agent Feeds subscribe to my private SQLite task database? If there isn't already a suitable source, draft the safest local approach but don't run any mutating commands.",
+      "expected_output": "The agent searches existing templates first. If no built-in fits SQLite directly, it explains that a local read-only command template is appropriate, asks for or proposes an operator-approved argv-only read command, scaffolds/tests a local template only after that decision, and avoids mutating commands or secrets in YAML.",
+      "assertions": [
+        "The agent starts with `python3 scripts/agentfeeds.py templates search <query>` instead of immediately writing a template.",
+        "The agent chooses local template authoring only after explaining that no built-in template fits the SQLite source.",
+        "The proposed command template uses an argv array and is explicitly read-only.",
+        "The agent avoids shell strings, mutating commands, cloud/account changes, and secrets in template YAML.",
+        "The agent validates and tests the template with `templates validate` and `templates test` before subscribing."
+      ]
+    },
+    {
+      "id": "diagnose-degraded-refresh",
+      "prompt": "Agent Feeds seems stale. Figure out whether the background fetcher is actually working and tell me the smallest safe next step.",
+      "expected_output": "The agent checks polling status and stream health, distinguishes scheduler problems from per-stream errors/missing/stale state, and recommends a targeted fix such as installing polling, refreshing one stream, or reconfiguring a failed subscription. It does not refresh all streams unless necessary or requested.",
+      "assertions": [
+        "The agent checks `python3 scripts/agentfeeds.py polling status --json`.",
+        "The agent checks `python3 scripts/agentfeeds.py streams health --json`.",
+        "The response distinguishes polling installation problems from stream-level fetch errors.",
+        "The recommended next action is targeted and safe, such as polling install, one-stream refresh, or subscription reconfiguration.",
+        "The agent does not run `python3 scripts/agentfeeds_fetch.py --all` as the first/default fix unless the user asked for a full refresh."
+      ]
+    },
+    {
+      "id": "balance-catalog-and-local-authoring",
+      "prompt": "I want ambient context from OpenAI's blog RSS feed and also from my private local dashboard command. Decide what should be a built-in/template subscription versus what should be locally authored.",
+      "expected_output": "The agent uses the reusable RSS built-in for OpenAI's blog/feed URL and treats the private dashboard command as local template authoring. It explains why common source families belong in the catalog/built-ins while private operator-specific commands stay local unless they become broadly reusable.",
+      "assertions": [
+        "The agent selects a built-in or parameterized RSS template for the public OpenAI blog/feed source.",
+        "The agent treats the private dashboard command as local template authoring rather than a built-in catalog contribution by default.",
+        "The response explains the built-in/local split using reuse, source family, privacy, and auth/operator-specific concerns.",
+        "The agent proposes upstreaming only if the local template becomes broadly reusable and does not contain private details.",
+        "The agent keeps command-based local authoring read-only and operator-approved."
+      ]
+    }
+  ]
+}

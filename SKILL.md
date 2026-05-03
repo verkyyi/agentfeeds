@@ -40,6 +40,8 @@ References to load only when needed:
 - Template authoring details: `references/template-authoring.md`
 - Background refresh details: `references/background-refresh.md`
 
+Built-in templates come from the standalone catalog repo `https://github.com/verkyyi/agentfeeds-catalog` and are cached locally; user-local templates live under `~/.agentfeeds/templates/`.
+
 ## Session Start
 
 At the start of each session:
