@@ -441,7 +441,7 @@ def validate_stream_file(path: Path, root: Path = DEFAULT_ROOT) -> None:
                 raise ValueError(f"{path}: adapter.{required} is required for {adapter_kind}")
     if adapter_kind in {"rss", "ical"} and "url" not in stream["adapter"]:
         raise ValueError(f"{path}: adapter.url is required for {adapter_kind}")
-    path_based_adapters = {"local_file", "local_directory", "markdown_vault", "local_git_status", "finder_recent_downloads", "safari_reading_list"}
+    path_based_adapters = {"local_file", "filesystem_scan", "markdown_scan", "git_status", "plist_reading_list"}
     if adapter_kind in path_based_adapters and "path" not in stream["adapter"]:
         raise ValueError(f"{path}: adapter.path is required for {adapter_kind}")
     if adapter_kind == "local_command":
@@ -450,7 +450,15 @@ def validate_stream_file(path: Path, root: Path = DEFAULT_ROOT) -> None:
             raise ValueError(f"{path}: adapter.command must be a non-empty string array for local_command")
         if stream["mode"] == "event" and stream["adapter"].get("parse") != "json":
             raise ValueError(f"{path}: local_command event streams require adapter.parse: json")
-    tcc_adapters = {"mac_calendar", "mac_reminders", "mac_notes", "mac_mail", "imessage_sqlite"}
+    if adapter_kind == "apple_automation":
+        for required in ("script", "columns"):
+            if required not in stream["adapter"]:
+                raise ValueError(f"{path}: adapter.{required} is required for apple_automation")
+    if adapter_kind == "sqlite_query":
+        for required in ("database", "query", "columns"):
+            if required not in stream["adapter"]:
+                raise ValueError(f"{path}: adapter.{required} is required for sqlite_query")
+    tcc_adapters = {"apple_automation", "sqlite_query"}
     if adapter_kind in tcc_adapters and "tcc_permission" not in stream["adapter"]:
         raise ValueError(f"{path}: adapter.tcc_permission is required for {adapter_kind}")
 

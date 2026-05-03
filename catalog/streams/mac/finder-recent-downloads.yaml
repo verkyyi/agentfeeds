@@ -8,7 +8,7 @@ schema_version: 1.0.0
 parameters: []
 source_uri_template: "feed://mac.finder/recent-downloads"
 adapter:
-  kind: finder_recent_downloads
+  kind: filesystem_scan
   path: "~/Downloads"
   order_by: modified_at
   limit: 25

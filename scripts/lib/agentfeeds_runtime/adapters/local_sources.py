@@ -40,7 +40,7 @@ def _directory_entry(path: Path) -> dict:
     }
 
 
-def fetch_local_directory(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
+def fetch_filesystem_scan(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
     root = _resolve_path(adapter["path"])
     if not root.exists():
         raise FileNotFoundError(f"{stream['id']}: local directory not found: {root}")
@@ -69,7 +69,7 @@ def _parse_frontmatter(text: str) -> tuple[dict, str]:
     return data, body
 
 
-def fetch_markdown_vault(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
+def fetch_markdown_scan(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
     root = _resolve_path(adapter["path"])
     if not root.exists():
         raise FileNotFoundError(f"{stream['id']}: markdown vault not found: {root}")
@@ -102,7 +102,7 @@ def _git(repo: Path, *args: str) -> str:
     return subprocess.run(["git", "-C", str(repo), *args], check=False, text=True, capture_output=True).stdout.strip()
 
 
-def fetch_local_git_status(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
+def fetch_git_status(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
     repo = _resolve_path(adapter["path"])
     if not (repo / ".git").exists():
         raise ValueError(f"{stream['id']}: path is not a git repository: {repo}")

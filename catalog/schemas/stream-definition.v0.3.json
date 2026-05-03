@@ -76,17 +76,13 @@
             "rss",
             "ical",
             "local_file",
-            "local_directory",
-            "markdown_vault",
-            "local_git_status",
+            "filesystem_scan",
+            "markdown_scan",
+            "git_status",
             "local_command",
-            "mac_calendar",
-            "mac_reminders",
-            "mac_notes",
-            "mac_mail",
-            "imessage_sqlite",
-            "safari_reading_list",
-            "finder_recent_downloads"
+            "apple_automation",
+            "sqlite_query",
+            "plist_reading_list"
           ]
         }
       }

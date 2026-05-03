@@ -28,11 +28,17 @@ from agentfeeds_runtime.polling import uninstall as polling_uninstall
 INSTANCE_ID_PATTERN = re.compile(r"^[a-z0-9-]+/[a-z0-9][a-z0-9-]*$")
 ADAPTER_KINDS = {
     "local_file": "Read one local text, Markdown, or JSON file as a snapshot.",
+    "filesystem_scan": "Scan a local directory and emit recent file entries.",
+    "markdown_scan": "Scan a local Markdown directory and emit recent documents.",
+    "git_status": "Read local Git branch, dirty files, and ahead/behind status.",
     "local_command": "Run an argv-only local command for a snapshot or JSON-derived events.",
     "json_http": "Fetch one HTTP JSON document and transform it into a snapshot.",
     "paginated_json_http": "Fetch an HTTP JSON array and transform it into event items.",
     "rss": "Fetch an RSS or Atom feed as event items.",
     "ical": "Fetch an iCalendar URL as event items.",
+    "apple_automation": "Run read-only AppleScript automation and map tab-delimited rows to events.",
+    "sqlite_query": "Run a read-only SQLite query and map rows to events.",
+    "plist_reading_list": "Read Safari-style Reading List entries from a property-list file.",
 }
 POLLING_LABEL = "dev.agentfeeds.fetch"
 POLLING_BEGIN_MARKER = "# BEGIN Agent Feeds polling"
@@ -197,7 +203,20 @@ def scaffold_stream(template_id: str, adapter_kind: str) -> tuple[dict, dict, Pa
     category, name = _template_id_parts(template_id)
     title = _title_from_slug(name)
     type_name = f"{category}.{name.replace('-', '.')}"
-    mode = "event" if adapter_kind in {"paginated_json_http", "rss", "ical"} else "snapshot"
+    mode = (
+        "event"
+        if adapter_kind in {
+            "paginated_json_http",
+            "rss",
+            "ical",
+            "filesystem_scan",
+            "markdown_scan",
+            "apple_automation",
+            "sqlite_query",
+            "plist_reading_list",
+        }
+        else "snapshot"
+    )
     schema_name = f"{type_name}.v1.json"
     stream_path = Path(category) / f"{name}.yaml"
     schema_path = Path(schema_name)
@@ -214,6 +233,18 @@ def scaffold_stream(template_id: str, adapter_kind: str) -> tuple[dict, dict, Pa
         parameters = [{"name": "path", "type": "string", "description": "Local file path", "required": True}]
         source_uri_template = f"feed://{type_name}/file?path={{path}}"
         adapter = {"kind": "local_file", "path": "{path}"}
+    elif adapter_kind == "filesystem_scan":
+        parameters = [{"name": "path", "type": "string", "description": "Local directory path", "required": True}]
+        source_uri_template = f"feed://{type_name}/directory?path={{path}}"
+        adapter = {"kind": "filesystem_scan", "path": "{path}", "order_by": "modified_at", "limit": 25}
+    elif adapter_kind == "markdown_scan":
+        parameters = [{"name": "path", "type": "string", "description": "Markdown directory path", "required": True}]
+        source_uri_template = f"feed://{type_name}/markdown?path={{path}}"
+        adapter = {"kind": "markdown_scan", "path": "{path}", "parse_frontmatter": True, "order_by": "modified_at", "limit": 25}
+    elif adapter_kind == "git_status":
+        parameters = [{"name": "path", "type": "string", "description": "Git repository path", "required": True}]
+        source_uri_template = f"feed://{type_name}/git?path={{path}}"
+        adapter = {"kind": "git_status", "path": "{path}"}
     elif adapter_kind == "local_command":
         parameters = []
         source_uri_template = f"feed://{type_name}/command"
@@ -253,6 +284,30 @@ def scaffold_stream(template_id: str, adapter_kind: str) -> tuple[dict, dict, Pa
         type_name = "ical.event"
         schema_name = "ical-event.v1.json"
         schema_path = Path(schema_name)
+    elif adapter_kind == "apple_automation":
+        source_uri_template = f"feed://{type_name}/apple-automation"
+        adapter = {
+            "kind": "apple_automation",
+            "tcc_permission": "Automation",
+            "script": "set rows to {\"example-id\" & tab & \"Example title\"}\nset AppleScript's text item delimiters to linefeed\nreturn rows as text",
+            "columns": ["id", "title"],
+            "id_column": "id",
+        }
+    elif adapter_kind == "sqlite_query":
+        parameters = [{"name": "database", "type": "string", "description": "SQLite database path", "required": True}]
+        source_uri_template = f"feed://{type_name}/sqlite?database={{database}}"
+        adapter = {
+            "kind": "sqlite_query",
+            "database": "{database}",
+            "tcc_permission": "Full Disk Access",
+            "query": "SELECT 1 AS id, 'Example title' AS title",
+            "columns": ["id", "title"],
+            "id_column": "id",
+        }
+    elif adapter_kind == "plist_reading_list":
+        parameters = [{"name": "path", "type": "string", "description": "Property-list file path", "required": True}]
+        source_uri_template = f"feed://{type_name}/plist-reading-list?path={{path}}"
+        adapter = {"kind": "plist_reading_list", "path": "{path}", "limit": 50}
 
     stream = {
         "id": template_id,

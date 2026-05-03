@@ -342,11 +342,17 @@ contributed_by: lee
 |`adapter.kind`       |What it does                                                                                         |
 |---------------------|-----------------------------------------------------------------------------------------------------|
 |`local_file`         |Read one local text, Markdown, or JSON file and emit one snapshot.                                   |
+|`filesystem_scan`    |Scan a local directory and emit recent file or directory entries.                                    |
+|`markdown_scan`      |Scan a local Markdown directory and emit recent documents.                                           |
+|`git_status`         |Read local Git branch, dirty files, and ahead/behind status.                                         |
 |`local_command`      |Run an argv-only local command. Use `snapshot` to capture command output, or `event` with JSON `items_from` to emit one event per item.|
 |`json_http`          |GET a URL, run a JMESPath transform on the response, emit one envelope. Use for `snapshot` streams.  |
 |`paginated_json_http`|GET a URL, run a transform that yields an array, emit one envelope per item. Use for `event` streams.|
 |`rss`                |Parse an RSS/Atom/JSON Feed URL, emit one envelope per entry, `mode: event`, schema = `rss-item.v1`. |
 |`ical`               |Parse an iCalendar URL, emit one envelope per VEVENT, `mode: event`, schema = `ical-event.v1`.       |
+|`apple_automation`   |Run read-only AppleScript and map tab-delimited rows to events. Template YAML owns the script, columns, static fields, and TCC permission declaration.|
+|`sqlite_query`       |Run a read-only SQLite query and map rows to events. Template YAML owns the database path, SQL, columns, timestamp conversions, and TCC permission declaration.|
+|`plist_reading_list` |Read Safari-style Reading List entries from a property-list file.                                    |
 
 Other adapter kinds (`html_scrape`, `webhook_receive`, `paginated_with_cursor`) are explicitly **out of scope for v0.3**.
 

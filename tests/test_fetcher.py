@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sqlite3
 import sys
 import textwrap
 
@@ -440,7 +441,7 @@ def test_json_http_event_mode_emits_events(tmp_path, monkeypatch):
     assert events[0]["data"] == {"id": "task-1", "title": "Ship"}
 
 
-def test_local_directory_and_markdown_adapters(tmp_path):
+def test_filesystem_scan_and_markdown_scan_adapters(tmp_path):
     docs = tmp_path / "docs"
     docs.mkdir()
     (docs / "b.md").write_text("---\ntitle: B title\ntags: [work, launch]\n---\n# Body\n\nBeta note", encoding="utf-8")
@@ -454,7 +455,7 @@ def test_local_directory_and_markdown_adapters(tmp_path):
         "schema_url": "https://agentfeeds.dev/schemas/local.directory-entry.v1.json",
         "schema_version": "1.0.0",
         "source_uri_template": "feed://local.directory/recent?path={path}",
-        "adapter": {"kind": "local_directory", "path": "{path}", "limit": 10},
+        "adapter": {"kind": "filesystem_scan", "path": "{path}", "limit": 10},
         "parameters": [{"name": "path", "required": True}],
     }
     markdown_stream = {
@@ -465,7 +466,7 @@ def test_local_directory_and_markdown_adapters(tmp_path):
         "schema_url": "https://agentfeeds.dev/schemas/local.markdown-document.v1.json",
         "schema_version": "1.0.0",
         "source_uri_template": "feed://local.markdown/vault?path={path}",
-        "adapter": {"kind": "markdown_vault", "path": "{path}", "parse_frontmatter": True, "limit": 10},
+        "adapter": {"kind": "markdown_scan", "path": "{path}", "parse_frontmatter": True, "limit": 10},
         "parameters": [{"name": "path", "required": True}],
     }
 
@@ -477,7 +478,7 @@ def test_local_directory_and_markdown_adapters(tmp_path):
     assert markdown_events[0]["data"]["tags"] == ["work", "launch"]
 
 
-def test_local_git_status_adapter(tmp_path):
+def test_git_status_adapter(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess = __import__("subprocess")
@@ -492,7 +493,7 @@ def test_local_git_status_adapter(tmp_path):
         "schema_url": "https://agentfeeds.dev/schemas/local.git-status.v1.json",
         "schema_version": "1.0.0",
         "source_uri_template": "feed://local.git/status?path={path}",
-        "adapter": {"kind": "local_git_status", "path": "{path}"},
+        "adapter": {"kind": "git_status", "path": "{path}"},
         "parameters": [{"name": "path", "required": True}],
     }
 
@@ -512,7 +513,7 @@ def test_mac_adapter_reports_non_macos(tmp_path, monkeypatch):
         "schema_url": "https://agentfeeds.dev/schemas/ical-event.v1.json",
         "schema_version": "1.0.0",
         "source_uri_template": "feed://mac.calendar/today",
-        "adapter": {"kind": "mac_calendar", "scope": "today", "tcc_permission": "Calendar"},
+        "adapter": {"kind": "apple_automation", "script": "return \"\"", "columns": ["id"], "tcc_permission": "Calendar"},
     }
 
     try:
@@ -521,6 +522,83 @@ def test_mac_adapter_reports_non_macos(tmp_path, monkeypatch):
         assert "requires macOS" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("expected macOS requirement failure")
+
+
+def test_apple_automation_maps_rows_with_types(tmp_path, monkeypatch):
+    monkeypatch.setattr(mac_native.platform, "system", lambda: "Darwin")
+
+    class FakeResult:
+        returncode = 0
+        stdout = "message-1\ttrue\t3\t2026-05-03T12:00:00Z\n"
+        stderr = ""
+
+    monkeypatch.setattr(mac_native.subprocess, "run", lambda *_args, **_kwargs: FakeResult())
+    stream = {
+        "id": "mac/mail-unread",
+        "type": "mac.mail-message",
+        "mode": "event",
+        "schema_url": "https://agentfeeds.dev/schemas/mac.mail-message.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://mac.mail/unread",
+        "adapter": {
+            "kind": "apple_automation",
+            "script": "return rows as text",
+            "columns": ["id", {"name": "unread", "type": "boolean"}, {"name": "priority", "type": "integer"}, "received_at"],
+            "static": {"mailbox": "Inbox"},
+            "id_column": "id",
+            "time_column": "received_at",
+            "tcc_permission": "Automation",
+        },
+    }
+
+    _uri, events = fetcher.run_adapter(stream, {}, tmp_path)
+
+    assert events[0]["id"] == "message-1"
+    assert events[0]["time"] == "2026-05-03T12:00:00Z"
+    assert events[0]["data"] == {
+        "mailbox": "Inbox",
+        "id": "message-1",
+        "unread": True,
+        "priority": 3,
+        "received_at": "2026-05-03T12:00:00Z",
+    }
+
+
+def test_sqlite_query_maps_rows_and_mac_timestamps(tmp_path, monkeypatch):
+    monkeypatch.setattr(mac_native.platform, "system", lambda: "Darwin")
+    database = tmp_path / "chat.db"
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute("CREATE TABLE message (thread_id INTEGER, snippet TEXT, message_date INTEGER)")
+        connection.execute("INSERT INTO message VALUES (7, 'hello', 0)")
+        connection.commit()
+    finally:
+        connection.close()
+    stream = {
+        "id": "mac/imessage-unread",
+        "type": "mac.imessage-thread",
+        "mode": "event",
+        "schema_url": "https://agentfeeds.dev/schemas/mac.imessage-thread.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://mac.imessage/unread",
+        "adapter": {
+            "kind": "sqlite_query",
+            "database": str(database),
+            "query": "SELECT thread_id, snippet, message_date FROM message",
+            "columns": ["thread_id", "snippet", "last_message_at"],
+            "timestamp_columns": {"last_message_at": "mac_absolute_ns"},
+            "static": {"unread_count": 1, "participants": []},
+            "id_column": "thread_id",
+            "time_column": "last_message_at",
+            "tcc_permission": "Full Disk Access",
+        },
+    }
+
+    _uri, events = fetcher.run_adapter(stream, {}, tmp_path)
+
+    assert events[0]["id"] == "7"
+    assert events[0]["time"] == "2001-01-01T00:00:00Z"
+    assert events[0]["data"]["last_message_at"] == "2001-01-01T00:00:00Z"
 
 
 def test_local_command_fetch_can_parse_json_and_transform(tmp_path):

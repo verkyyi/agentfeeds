@@ -8,12 +8,26 @@ schema_version: 1.0.0
 parameters: []
 source_uri_template: "feed://mac.imessage/unread?limit=25"
 adapter:
-  kind: imessage_sqlite
+  kind: sqlite_query
   database: "~/Library/Messages/chat.db"
-  scope: unread
-  limit: 25
   read_only: true
   tcc_permission: Full Disk Access
+  query: |
+    SELECT chat.ROWID, chat.display_name, message.text, message.date
+    FROM chat
+    JOIN chat_message_join ON chat.ROWID = chat_message_join.chat_id
+    JOIN message ON message.ROWID = chat_message_join.message_id
+    WHERE message.is_read = 0
+    ORDER BY message.date DESC
+    LIMIT 25
+  columns: [thread_id, display_name, snippet, last_message_at]
+  timestamp_columns:
+    last_message_at: mac_absolute_ns
+  static:
+    participants: []
+    unread_count: 1
+  id_column: thread_id
+  time_column: last_message_at
 recommended_poll_interval_seconds: 900
 auth: none
 tags: [mac, imessage, messages, unread, sqlite, tcc, no-auth]

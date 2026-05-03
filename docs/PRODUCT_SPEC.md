@@ -129,7 +129,7 @@ Agents should read it through `python3 scripts/agentfeeds.py streams read <subsc
 
 ### Adapter
 
-An adapter is the fetch mechanism behind a template. Current adapter types include HTTP JSON, RSS, iCalendar, local files, and local commands.
+An adapter is the fetch mechanism behind a template. Core adapter types are generic primitives: HTTP JSON, RSS, iCalendar, local files, local commands, filesystem scans, markdown scans, Git status, read-only AppleScript automation, read-only SQLite queries, and property-list reading-list extraction. Source-specific details belong in catalog template YAML, not in source-specific runtime adapter kinds.
 
 ## Primary Use Cases
 
