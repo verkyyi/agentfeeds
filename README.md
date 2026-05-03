@@ -197,16 +197,18 @@ python3 scripts/agentfeeds.py polling uninstall
 
 On macOS this installs a LaunchAgent at `~/Library/LaunchAgents/dev.agentfeeds.fetch.plist`. On Linux it installs a tagged crontab block. The interval is the shortest configured subscription interval, floored at 5 minutes.
 
-## Hermes Integration
+## Host-Specific Bundles
 
-Hermes users can install the standalone Hermes plugin instead of manually unpacking the skill:
+The canonical skill bundle works in any compatible agent that can load `SKILL.md` and run the bundled scripts. Host-specific bundles add only install ergonomics and host glue, such as session-start hooks or prompt-slot wiring.
+
+Hermes users can install the standalone Hermes plugin:
 
 ```bash
 git clone https://github.com/verkyyi/agentfeeds-hermes-plugin ~/.hermes/plugins-src/agentfeeds-hermes-plugin
 ~/.hermes/plugins-src/agentfeeds-hermes-plugin/install.sh
 ```
 
-The installer clones or updates this core skill repo, clones or updates the built-in template catalog, symlinks the Hermes plugin and skill, installs command wrappers, enables the plugin, and initializes `~/.agentfeeds/`.
+The Hermes plugin vendors or links this canonical skill unmodified, installs command wrappers, enables the plugin, initializes `~/.agentfeeds/`, and wires compact stream metadata into Hermes turns.
 
 Restart Hermes after installation.
 
@@ -219,6 +221,16 @@ python3 scripts/bundle/build_skill_bundle.py --output dist/agentfeeds-skill-v0.1
 ```
 
 The bundle intentionally includes only the skill surface, frozen catalog snapshot, and runtime files needed by agents. Repo-only docs, tests, build outputs, and caches are excluded.
+
+## Distribution Model
+
+Agent Feeds ships as one canonical skill with optional host-specific shells around it.
+
+- The canonical skill bundle is the source of truth: `SKILL.md`, `agents/`, `references/`, `scripts/`, `assets/`, `catalog/`, `LICENSE`, and `pyproject.toml`.
+- Host-specific bundles may vendor the canonical skill unmodified and add only host glue: manifests, hooks, installers, command wrappers, prompt-slot wiring, or one-click package formats.
+- Runtime setup is shared under `~/.agentfeeds/runtime-venv/`; whichever bundle installs first creates it, and later bundles reuse it.
+
+If a behavior is useful in every agent, keep it in this repo's `SKILL.md` or references. If it is meaningful only for one host, keep it in that host's adapter bundle. Do not fork `SKILL.md` per host; fix the canonical skill abstraction instead.
 
 ## FAQ
 
