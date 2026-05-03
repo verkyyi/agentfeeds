@@ -193,6 +193,14 @@ python3 scripts/agentfeeds.py streams show <subscription-id> --json
 python3 scripts/agentfeeds.py streams read <subscription-id> --json
 ```
 
+The primary content search surface is:
+
+```bash
+python3 scripts/agentfeeds.py search <topic> --json
+```
+
+It searches existing local state files for active subscriptions and returns compact matching snippets with subscription id, title, freshness, event id/time when available, and the matching data path. It does not refresh streams by itself; agents should refresh a stale matching stream only when the user needs current data.
+
 The session-start prompt surface is `python3 scripts/agentfeeds.py brief`. Its default output is a compact stable block intended for a system-level or persistent context slot:
 
 ```text
@@ -202,7 +210,7 @@ Available local streams:
 - dev/hackernews-frontpage: Hacker News front page
 
 Background refresh is expected. When relevant, search streams and read matching local state before web search or recomputing source data.
-Use `python3 scripts/agentfeeds.py streams search <topic> --json` and `python3 scripts/agentfeeds.py streams read <subscription-id> --json`.
+Use `python3 scripts/agentfeeds.py search <topic> --json` and `python3 scripts/agentfeeds.py streams read <subscription-id> --json`.
 </agentfeeds>
 ```
 
@@ -426,7 +434,8 @@ The Hermes plugin and skill live in the standalone `agentfeeds-hermes-plugin` re
 
 Agent-facing integrations should teach these behaviors:
 
-1. **At session start or when local context is relevant:** Use `python3 scripts/agentfeeds.py streams list` or `python3 scripts/agentfeeds.py streams search <topic>` to inspect active streams.
+1. **At session start:** Use `python3 scripts/agentfeeds.py brief` for compact stable prompt context.
+1. **When local context may be relevant:** Use `python3 scripts/agentfeeds.py search <topic> --json` to find matching local state snippets.
 1. **When user asks about a topic covered by a subscribed stream:** Use `python3 scripts/agentfeeds.py streams read <subscription-id> --json`. Do not web-search if a non-stale stream covers the question.
 1. **When the user asks to subscribe to something:** Search templates with `python3 scripts/agentfeeds.py templates search <query>`, inspect candidates with `python3 scripts/agentfeeds.py templates show <template-id>`, then subscribe.
 1. **When state appears stale and the user asks about it:** Run `python3 scripts/agentfeeds_fetch.py --stream <subscription-id>` to refresh, then re-read.

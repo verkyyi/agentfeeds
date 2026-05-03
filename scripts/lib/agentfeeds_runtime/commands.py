@@ -38,6 +38,45 @@ ADAPTER_KINDS = {
 POLLING_LABEL = "dev.agentfeeds.fetch"
 POLLING_BEGIN_MARKER = "# BEGIN Agent Feeds polling"
 POLLING_END_MARKER = "# END Agent Feeds polling"
+QUERY_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+QUERY_STOPWORDS = {
+    "about",
+    "after",
+    "also",
+    "and",
+    "are",
+    "can",
+    "could",
+    "did",
+    "does",
+    "for",
+    "from",
+    "has",
+    "have",
+    "how",
+    "into",
+    "latest",
+    "me",
+    "my",
+    "now",
+    "of",
+    "on",
+    "please",
+    "say",
+    "show",
+    "tell",
+    "that",
+    "the",
+    "this",
+    "to",
+    "was",
+    "what",
+    "when",
+    "where",
+    "who",
+    "why",
+    "with",
+}
 
 
 def parse_value(value: str) -> Any:
@@ -597,7 +636,7 @@ def render_brief(entries: list[dict], truncated: bool, include_freshness: bool) 
         [
             "",
             "Background refresh is expected. When relevant, search streams and read matching local state before web search or recomputing source data.",
-            "Use `python3 scripts/agentfeeds.py streams search <topic> --json` and `python3 scripts/agentfeeds.py streams read <subscription-id> --json`.",
+            "Use `python3 scripts/agentfeeds.py search <topic> --json` and `python3 scripts/agentfeeds.py streams read <subscription-id> --json`.",
             "</agentfeeds>",
         ]
     )
@@ -624,6 +663,201 @@ def cmd_brief(args: argparse.Namespace) -> int:
         )
         return 0
     print(brief)
+    return 0
+
+
+def _query_terms(query: str) -> list[str]:
+    terms = []
+    seen = set()
+    for raw in QUERY_TOKEN_PATTERN.findall(query.lower()):
+        term = raw.strip("._-")
+        if len(term) < 2 or term in QUERY_STOPWORDS or term in seen:
+            continue
+        seen.add(term)
+        terms.append(term)
+    return terms
+
+
+def _iter_text_fields(value: object, path: str = "data"):
+    if value is None:
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield from _iter_text_fields(item, f"{path}.{key}")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _iter_text_fields(item, f"{path}[{index}]")
+        return
+    if isinstance(value, (str, int, float, bool)):
+        text = str(value)
+        if text:
+            yield path, text
+
+
+def _best_field_match(value: object, terms: list[str], match_mode: str, max_field_chars: int) -> dict | None:
+    best = None
+    fields = [(path, text) for path, text in _iter_text_fields(value)]
+    for path, text in fields:
+        searchable = text[:max_field_chars]
+        lowered = searchable.lower()
+        matched_terms = [term for term in terms if term in lowered]
+        if match_mode == "all" and len(matched_terms) != len(terms):
+            continue
+        if match_mode == "any" and not matched_terms:
+            continue
+        occurrences = sum(lowered.count(term) for term in matched_terms)
+        score = len(matched_terms) * 100 + occurrences
+        candidate = {
+            "path": path,
+            "text": searchable,
+            "score": score,
+            "matched_terms": matched_terms,
+        }
+        if best is None or candidate["score"] > best["score"]:
+            best = candidate
+    if best is None and fields:
+        combined = " ".join(text for _path, text in fields)[:max_field_chars]
+        lowered = combined.lower()
+        matched_terms = [term for term in terms if term in lowered]
+        if (match_mode == "all" and len(matched_terms) == len(terms)) or (match_mode == "any" and matched_terms):
+            occurrences = sum(lowered.count(term) for term in matched_terms)
+            best = {
+                "path": "data",
+                "text": combined,
+                "score": len(matched_terms) * 100 + occurrences,
+                "matched_terms": matched_terms,
+            }
+    return best
+
+
+def _snippet(text: str, terms: list[str], max_chars: int) -> str:
+    compact = re.sub(r"\s+", " ", text).strip()
+    if len(compact) <= max_chars:
+        return compact
+    lowered = compact.lower()
+    positions = [lowered.find(term) for term in terms if lowered.find(term) >= 0]
+    center = min(positions) if positions else 0
+    start = max(0, center - max_chars // 3)
+    end = min(len(compact), start + max_chars)
+    start = max(0, end - max_chars)
+    prefix = "..." if start else ""
+    suffix = "..." if end < len(compact) else ""
+    return f"{prefix}{compact[start:end].strip()}{suffix}"
+
+
+def _search_items_for_payload(payload: dict) -> list[dict]:
+    data = payload.get("data")
+    meta = payload.get("_meta") or {}
+    if isinstance(data, list):
+        items = []
+        for index, event in enumerate(data):
+            if isinstance(event, dict):
+                items.append(
+                    {
+                        "kind": "event",
+                        "index": index,
+                        "id": event.get("id"),
+                        "time": event.get("time"),
+                        "data": event.get("data", event),
+                    }
+                )
+        return items
+    return [
+        {
+            "kind": "snapshot",
+            "index": None,
+            "id": None,
+            "time": meta.get("last_updated"),
+            "data": data,
+        }
+    ]
+
+
+def _search_state(root: Path, query: str, *, match_mode: str, limit: int, max_field_chars: int, snippet_chars: int) -> dict:
+    terms = _query_terms(query)
+    if not terms:
+        raise ValueError("search query has no usable terms")
+
+    matches = []
+    missing_streams = 0
+    for row in _stream_rows(root):
+        if not row["exists"] or not row.get("path"):
+            missing_streams += 1
+            continue
+        payload = fetch.load_existing_state(root / row["path"])
+        if not payload:
+            continue
+        for item in _search_items_for_payload(payload):
+            best = _best_field_match(item["data"], terms, match_mode, max_field_chars)
+            if not best:
+                continue
+            matches.append(
+                {
+                    "subscription_id": row["id"],
+                    "title": row["title"],
+                    "template": row["template"],
+                    "mode": row["mode"],
+                    "stale": row["stale"],
+                    "last_updated": row["last_updated"],
+                    "item_kind": item["kind"],
+                    "item_index": item["index"],
+                    "item_id": item["id"],
+                    "item_time": item["time"],
+                    "path": best["path"],
+                    "matched_terms": best["matched_terms"],
+                    "score": best["score"],
+                    "snippet": _snippet(best["text"], terms, snippet_chars),
+                }
+            )
+    matches.sort(
+        key=lambda match: (
+            match["score"],
+            match["item_time"] or match["last_updated"] or "",
+            match["subscription_id"],
+        ),
+        reverse=True,
+    )
+    return {
+        "query": query,
+        "terms": terms,
+        "match": match_mode,
+        "matches": matches[:limit],
+        "total_matches": len(matches),
+        "missing_streams": missing_streams,
+    }
+
+
+def cmd_search(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    query = " ".join(args.query).strip()
+    if not query:
+        print("search requires a query", file=sys.stderr)
+        return 2
+    try:
+        result = _search_state(
+            args.root,
+            query,
+            match_mode=args.match,
+            limit=args.limit,
+            max_field_chars=args.max_field_chars,
+            snippet_chars=args.snippet_chars,
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+    if not result["matches"]:
+        print("No matching local stream state.")
+        return 0
+    for match in result["matches"]:
+        stale = "stale" if match["stale"] else "fresh"
+        item = f" item={match['item_id']}" if match["item_id"] else ""
+        print(f"{match['subscription_id']}: {match['title']} [{stale}{item}]")
+        print(f"  {match['path']}: {match['snippet']}")
     return 0
 
 
@@ -964,6 +1198,15 @@ def build_parser() -> argparse.ArgumentParser:
     brief.add_argument("--include-freshness", action="store_true", help="include volatile freshness metadata")
     brief.add_argument("--json", action="store_true")
     brief.set_defaults(func=cmd_brief)
+
+    search = subparsers.add_parser("search", help="search existing local stream state")
+    search.add_argument("query", nargs="+")
+    search.add_argument("--match", choices=["all", "any"], default="all", help="require all query terms or any term")
+    search.add_argument("--limit", type=int, default=10, help="maximum matching items to return")
+    search.add_argument("--max-field-chars", type=int, default=20000, help="maximum characters searched per field")
+    search.add_argument("--snippet-chars", type=int, default=240, help="maximum snippet characters")
+    search.add_argument("--json", action="store_true")
+    search.set_defaults(func=cmd_search)
 
     subscribe = subparsers.add_parser("subscribe", help="add a subscription")
     subscribe.add_argument("template_id")

@@ -123,6 +123,8 @@ Agents should read it through `python3 scripts/agentfeeds.py streams read <subsc
 
 `python3 scripts/agentfeeds.py brief` provides the stable session-start prompt surface. By default it avoids timestamps and volatile freshness fields so repeated sessions can benefit from model-side prompt caching.
 
+`python3 scripts/agentfeeds.py search <topic> --json` searches refreshed local stream state and returns compact matching snippets. This is the preferred first step when a user prompt may be covered by existing ambient context.
+
 ### Adapter
 
 An adapter is the fetch mechanism behind a template. Current adapter types include HTTP JSON, RSS, iCalendar, local files, and local commands.

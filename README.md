@@ -92,6 +92,7 @@ Agent Feeds gives the agent a small local control surface:
 - `python3 scripts/agentfeeds.py templates ...` discovers reusable feed definitions
 - `python3 scripts/agentfeeds.py subscribe ...` creates active subscriptions
 - `python3 scripts/agentfeeds.py streams ...` lists, searches, shows, and reads refreshed data
+- `python3 scripts/agentfeeds.py search ...` searches refreshed local state and returns matching snippets
 - `python3 scripts/agentfeeds_fetch.py ...` updates the catalog and refreshes subscriptions
 - `python3 scripts/agentfeeds.py polling ...` keeps subscriptions warm in the background
 - `python3 scripts/agentfeeds.py brief` emits compact stable context for session-start prompt insertion
@@ -132,6 +133,7 @@ The skill instructs the agent to:
 - collect only required template parameters
 - subscribe through the CLI
 - refresh before summarizing when freshness matters
+- search local stream state before rerunning external searches or source-specific queries
 - read compact stream data only when relevant
 - draft and test local templates when no built-in template fits
 

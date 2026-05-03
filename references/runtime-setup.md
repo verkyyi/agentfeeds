@@ -44,3 +44,9 @@ python3 scripts/agentfeeds.py brief
 ```
 
 Use the default brief for stable prompt/context slots. It intentionally avoids volatile timestamps; use `--include-freshness` only for freshness debugging.
+
+When a user prompt may be covered by existing ambient context, search local state before rerunning source-specific work:
+
+```bash
+python3 scripts/agentfeeds.py search <topic> --json
+```

@@ -73,7 +73,7 @@ At the start of each session:
 
 The default brief intentionally avoids volatile timestamps. Use `python3 scripts/agentfeeds.py brief --include-freshness` only when the user asks about freshness or debugging.
 
-Use `python3 scripts/agentfeeds.py streams list` or `python3 scripts/agentfeeds.py streams search <topic>` to discover active local context during a task. Do not read raw state files during normal operation.
+Use `python3 scripts/agentfeeds.py search <topic> --json` to find relevant local state snippets during a task. Use `python3 scripts/agentfeeds.py streams list` or `python3 scripts/agentfeeds.py streams search <topic>` only when you need stream metadata. Do not read raw state files during normal operation.
 
 ## Discover Templates
 
@@ -118,8 +118,8 @@ python3 scripts/agentfeeds.py streams list
 
 When the user asks about a topic covered by a subscribed stream:
 
-1. Find candidate active streams with `python3 scripts/agentfeeds.py streams search <topic>`.
-2. Inspect metadata with `python3 scripts/agentfeeds.py streams show <subscription-id> --json`.
+1. Search existing local state with `python3 scripts/agentfeeds.py search <topic> --json`.
+2. If needed, inspect metadata with `python3 scripts/agentfeeds.py streams show <subscription-id> --json`.
 3. If stale and freshness matters, refresh the stream before answering.
 4. Read compact data with `python3 scripts/agentfeeds.py streams read <subscription-id> --limit 20 --json`.
 

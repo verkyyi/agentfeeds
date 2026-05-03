@@ -233,6 +233,79 @@ def test_cli_brief_can_include_freshness_when_requested(tmp_path, capsys):
     assert payload["streams"][0]["last_updated"]
 
 
+def test_cli_search_finds_snapshot_state_content(tmp_path, capsys):
+    source = tmp_path / "Project Notes.md"
+    source.write_text("# Project Notes\n\nAlice is preparing the launch brief.\n", encoding="utf-8")
+    root = tmp_path / "agentfeeds"
+
+    assert cli.main(["--root", str(root), "subscribe", "local/file", f"path={source}"]) == 0
+    capsys.readouterr()
+
+    assert cli.main(["--root", str(root), "search", "Alice launch", "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["terms"] == ["alice", "launch"]
+    assert result["total_matches"] == 1
+    match = result["matches"][0]
+    assert match["subscription_id"] == "local/project-notes-md"
+    assert match["item_kind"] == "snapshot"
+    assert match["path"] == "data.content"
+    assert "Alice is preparing the launch brief" in match["snippet"]
+
+
+def test_cli_search_finds_event_state_content_across_fields(tmp_path, capsys):
+    root = tmp_path / "agentfeeds"
+
+    assert cli.main(["--root", str(root), "subscribe", "dev/hackernews-frontpage", "--no-fetch"]) == 0
+    capsys.readouterr()
+
+    stream = cli.fetch.load_stream_definition(root, "dev/hackernews-frontpage")
+    state_path = cli.fetch.state_path_for_stream(cli.fetch.source_uri_for(stream, {}), root)
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text(
+        json.dumps(
+            {
+                "_meta": {
+                    "subscription_id": "dev/hackernews-frontpage",
+                    "template_id": "dev/hackernews-frontpage",
+                    "title": "Hacker News front page",
+                    "last_updated": "2026-05-03T12:00:00Z",
+                    "next_poll_due": "2026-05-03T12:05:00Z",
+                    "mode": "event",
+                },
+                "data": [
+                    {
+                        "id": "one",
+                        "time": "2026-05-03T11:55:00Z",
+                        "data": {
+                            "title": "Alice update",
+                            "summary": "Launch notes are ready",
+                            "link": "https://example.com/one",
+                        },
+                    },
+                    {
+                        "id": "two",
+                        "time": "2026-05-03T11:50:00Z",
+                        "data": {"title": "Unrelated", "summary": "Other item"},
+                    },
+                ],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    assert cli.main(["--root", str(root), "search", "what did Alice say about launch", "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["terms"] == ["alice", "launch"]
+    assert result["total_matches"] == 1
+    match = result["matches"][0]
+    assert match["subscription_id"] == "dev/hackernews-frontpage"
+    assert match["item_kind"] == "event"
+    assert match["item_id"] == "one"
+    assert match["path"] == "data"
+    assert "Alice update" in match["snippet"]
+
+
 def test_cli_polling_status_reports_cron_block(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(cli.platform, "system", lambda: "Linux")
     monkeypatch.setattr(cli.polling_install, "fetcher_path", lambda: "/tmp/agentfeeds-fetch")
