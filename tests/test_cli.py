@@ -9,7 +9,7 @@ import yaml
 import agentfeeds.commands as cli
 
 
-def test_cli_subscribe_status_and_unsubscribe_without_fetch(tmp_path, capsys):
+def test_cli_subscribe_streams_and_unsubscribe_without_fetch(tmp_path, capsys):
     assert cli.main([
         "--root",
         str(tmp_path),
@@ -29,17 +29,17 @@ def test_cli_subscribe_status_and_unsubscribe_without_fetch(tmp_path, capsys):
         {
             "id": "weather/santa-clara-current",
             "title": "Santa Clara current weather",
-            "provider": "weather/openmeteo-current",
+            "template": "weather/openmeteo-current",
             "parameters": {"lat": 37.3541, "lon": -121.9552},
         }
     ]
+    capsys.readouterr()
 
-    assert cli.main(["--root", str(tmp_path), "status", "--json"]) == 0
-    status_out = capsys.readouterr().out
-    status = json.loads(status_out[status_out.index("{"):])
-    assert status["subscriptions"][0]["id"] == "weather/santa-clara-current"
-    assert status["subscriptions"][0]["provider"] == "weather/openmeteo-current"
-    assert status["subscriptions"][0]["exists"] is False
+    assert cli.main(["--root", str(tmp_path), "streams", "list", "--json"]) == 0
+    streams = json.loads(capsys.readouterr().out)
+    assert streams["streams"][0]["id"] == "weather/santa-clara-current"
+    assert streams["streams"][0]["template"] == "weather/openmeteo-current"
+    assert streams["streams"][0]["exists"] is False
 
     assert cli.main([
         "--root",
@@ -51,11 +51,22 @@ def test_cli_subscribe_status_and_unsubscribe_without_fetch(tmp_path, capsys):
     assert config["subscriptions"] == []
 
 
-def test_cli_discover_filters_catalog(tmp_path, capsys):
-    assert cli.main(["--root", str(tmp_path), "discover", "hacker"]) == 0
+def test_cli_templates_search_filters_catalog(tmp_path, capsys):
+    assert cli.main(["--root", str(tmp_path), "templates", "search", "hacker"]) == 0
     out = capsys.readouterr().out
     assert "dev/hackernews-frontpage" in out
     assert "weather/openmeteo-current" not in out
+
+
+def test_cli_templates_show_catalog_entry(tmp_path, capsys):
+    assert cli.main(["--root", str(tmp_path), "templates", "search", "hacker"]) == 0
+    out = capsys.readouterr().out
+    assert "dev/hackernews-frontpage" in out
+
+    assert cli.main(["--root", str(tmp_path), "templates", "show", "local/file", "--json"]) == 0
+    template = json.loads(capsys.readouterr().out)
+    assert template["id"] == "local/file"
+    assert template["parameters"][0]["name"] == "path"
 
 
 def test_cli_materializes_parameterized_subscription(tmp_path, monkeypatch):
@@ -86,13 +97,13 @@ def test_cli_materializes_parameterized_subscription(tmp_path, monkeypatch):
         {
             "id": "news/example-com",
             "title": "Example News",
-            "provider": "news/rss-generic",
+            "template": "news/rss-generic",
             "parameters": {"url": "https://feeds.example.net/rss.xml"},
         }
     ]
 
 
-def test_cli_keeps_no_parameter_provider_identity(tmp_path):
+def test_cli_keeps_no_parameter_template_identity(tmp_path):
     assert cli.main([
         "--root",
         str(tmp_path),
@@ -106,7 +117,7 @@ def test_cli_keeps_no_parameter_provider_identity(tmp_path):
         {
             "id": "dev/hackernews-frontpage",
             "title": "Hacker News front page",
-            "provider": "dev/hackernews-frontpage",
+            "template": "dev/hackernews-frontpage",
         }
     ]
 
@@ -137,43 +148,77 @@ def test_cli_materializes_local_file_subscription(tmp_path):
         {
             "id": "local/project-notes-md",
             "title": "Project Notes.md",
-            "provider": "local/file",
+            "template": "local/file",
             "parameters": {"path": str(source)},
         }
     ]
 
 
-def test_cli_provider_helpers(tmp_path, capsys):
-    assert cli.main(["--root", str(tmp_path), "providers", "path"]) == 0
-    assert capsys.readouterr().out.strip() == str(tmp_path / "providers")
+def test_cli_streams_list_search_show_and_read(tmp_path, capsys):
+    source = tmp_path / "Project Notes.md"
+    source.write_text("# Project Notes\n\nLocal context.\n", encoding="utf-8")
+    root = tmp_path / "agentfeeds"
 
-    assert cli.main(["--root", str(tmp_path), "providers", "validate"]) == 0
-    assert "No local providers found" in capsys.readouterr().out
+    assert cli.main([
+        "--root",
+        str(root),
+        "subscribe",
+        "local/file",
+        f"path={source}",
+    ]) == 0
+    capsys.readouterr()
 
-    assert cli.main(["--root", str(tmp_path), "providers", "list"]) == 0
+    assert cli.main(["--root", str(root), "streams", "list", "--json"]) == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert listed["streams"][0]["id"] == "local/project-notes-md"
+
+    assert cli.main(["--root", str(root), "streams", "search", "project", "--json"]) == 0
+    searched = json.loads(capsys.readouterr().out)
+    assert searched["streams"][0]["id"] == "local/project-notes-md"
+
+    assert cli.main(["--root", str(root), "streams", "show", "local/project-notes-md", "--json"]) == 0
+    shown = json.loads(capsys.readouterr().out)
+    assert shown["template"] == "local/file"
+    assert shown["exists"] is True
+    assert shown["data_summary"]["keys"]
+
+    assert cli.main(["--root", str(root), "streams", "read", "local/project-notes-md", "--json"]) == 0
+    read = json.loads(capsys.readouterr().out)
+    assert read["template"] == "local/file"
+    assert read["data"]["content"] == "# Project Notes\n\nLocal context.\n"
+
+
+def test_cli_template_helpers(tmp_path, capsys):
+    assert cli.main(["--root", str(tmp_path), "templates", "path"]) == 0
+    assert capsys.readouterr().out.strip() == str(tmp_path / "templates")
+
+    assert cli.main(["--root", str(tmp_path), "templates", "validate"]) == 0
+    assert "No local templates found" in capsys.readouterr().out
+
+    assert cli.main(["--root", str(tmp_path), "templates", "list"]) == 0
     out = capsys.readouterr().out
     assert "local/file: Local file" in out
     assert "source: builtin" in out
 
-    assert cli.main(["--root", str(tmp_path), "providers", "adapters"]) == 0
+    assert cli.main(["--root", str(tmp_path), "templates", "adapters"]) == 0
     out = capsys.readouterr().out
     assert "local_file:" in out
     assert "local_command:" in out
     assert "json_http:" in out
 
 
-def test_cli_scaffolds_local_provider(tmp_path, capsys):
+def test_cli_scaffolds_local_template(tmp_path, capsys):
     assert cli.main([
         "--root",
         str(tmp_path),
-        "providers",
+        "templates",
         "scaffold",
         "json_http",
         "personal/tasks",
     ]) == 0
 
-    stream_path = tmp_path / "providers" / "streams" / "personal" / "tasks.yaml"
-    schema_path = tmp_path / "providers" / "schemas" / "event-types" / "personal.tasks.v1.json"
+    stream_path = tmp_path / "templates" / "streams" / "personal" / "tasks.yaml"
+    schema_path = tmp_path / "templates" / "schemas" / "event-types" / "personal.tasks.v1.json"
     stream = yaml.safe_load(stream_path.read_text(encoding="utf-8"))
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
 
@@ -182,38 +227,38 @@ def test_cli_scaffolds_local_provider(tmp_path, capsys):
     assert stream["parameters"][0]["name"] == "url"
     assert schema["$id"] == "https://agentfeeds.dev/schemas/personal.tasks.v1.json"
     assert "wrote:" in capsys.readouterr().out
-    assert cli.main(["--root", str(tmp_path), "providers", "validate"]) == 0
+    assert cli.main(["--root", str(tmp_path), "templates", "validate"]) == 0
 
 
 def test_cli_scaffold_reuses_builtin_schema_for_rss(tmp_path):
     assert cli.main([
         "--root",
         str(tmp_path),
-        "providers",
+        "templates",
         "scaffold",
         "rss",
         "news/example",
     ]) == 0
 
-    stream_path = tmp_path / "providers" / "streams" / "news" / "example.yaml"
+    stream_path = tmp_path / "templates" / "streams" / "news" / "example.yaml"
     stream = yaml.safe_load(stream_path.read_text(encoding="utf-8"))
 
     assert stream["type"] == "rss.item"
     assert stream["schema_url"] == "https://agentfeeds.dev/schemas/rss-item.v1.json"
-    assert not (tmp_path / "providers" / "schemas" / "event-types" / "news.example.v1.json").exists()
+    assert not (tmp_path / "templates" / "schemas" / "event-types" / "news.example.v1.json").exists()
 
 
 def test_cli_scaffold_reuses_builtin_schema_for_local_command(tmp_path):
     assert cli.main([
         "--root",
         str(tmp_path),
-        "providers",
+        "templates",
         "scaffold",
         "local_command",
         "personal/command",
     ]) == 0
 
-    stream_path = tmp_path / "providers" / "streams" / "personal" / "command.yaml"
+    stream_path = tmp_path / "templates" / "streams" / "personal" / "command.yaml"
     stream = yaml.safe_load(stream_path.read_text(encoding="utf-8"))
 
     assert stream["id"] == "personal/command"
@@ -223,18 +268,18 @@ def test_cli_scaffold_reuses_builtin_schema_for_local_command(tmp_path):
     assert stream["adapter"]["kind"] == "local_command"
     assert stream["adapter"]["parse"] == "json"
     assert stream["adapter"]["transform"]["language"] == "jmespath"
-    assert not (tmp_path / "providers" / "schemas" / "event-types" / "personal.command.v1.json").exists()
-    assert cli.main(["--root", str(tmp_path), "providers", "validate"]) == 0
+    assert not (tmp_path / "templates" / "schemas" / "event-types" / "personal.command.v1.json").exists()
+    assert cli.main(["--root", str(tmp_path), "templates", "validate"]) == 0
 
 
-def test_cli_provider_test_runs_provider_without_writing_state(tmp_path, capsys):
+def test_cli_template_test_runs_template_without_writing_state(tmp_path, capsys):
     source = tmp_path / "Project Notes.md"
     source.write_text("# Project Notes\n", encoding="utf-8")
 
     assert cli.main([
         "--root",
         str(tmp_path / "agentfeeds"),
-        "providers",
+        "templates",
         "test",
         "local/file",
         f"path={source}",
@@ -242,7 +287,7 @@ def test_cli_provider_test_runs_provider_without_writing_state(tmp_path, capsys)
     ]) == 0
 
     result = json.loads(capsys.readouterr().out)
-    assert result["provider"] == "local/file"
+    assert result["template"] == "local/file"
     assert result["mode"] == "snapshot"
     assert result["event_count"] == 1
     assert result["sample"]["content"] == "# Project Notes\n"
@@ -250,9 +295,9 @@ def test_cli_provider_test_runs_provider_without_writing_state(tmp_path, capsys)
     assert not (tmp_path / "agentfeeds" / "state" / "local.file").exists()
 
 
-def test_cli_provider_test_supports_event_command_without_items_from(tmp_path, capsys):
-    streams_root = tmp_path / "providers" / "streams" / "personal"
-    schemas_root = tmp_path / "providers" / "schemas" / "event-types"
+def test_cli_template_test_supports_event_command_without_items_from(tmp_path, capsys):
+    streams_root = tmp_path / "templates" / "streams" / "personal"
+    schemas_root = tmp_path / "templates" / "schemas" / "event-types"
     streams_root.mkdir(parents=True)
     schemas_root.mkdir(parents=True)
     (schemas_root / "personal.item.v1.json").write_text(
@@ -306,14 +351,14 @@ def test_cli_provider_test_supports_event_command_without_items_from(tmp_path, c
     assert cli.main([
         "--root",
         str(tmp_path),
-        "providers",
+        "templates",
         "test",
         "personal/items",
         "--json",
     ]) == 0
 
     result = json.loads(capsys.readouterr().out)
-    assert result["provider"] == "personal/items"
+    assert result["template"] == "personal/items"
     assert result["mode"] == "event"
     assert result["event_count"] == 1
     assert result["sample"] == {"title": "One"}

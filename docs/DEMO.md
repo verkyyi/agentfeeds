@@ -6,22 +6,18 @@ This is the short launch demo for Agent Feeds v0.1.0.
 
 Agent Feeds should be shown as an interactive Hermes session, not as a user manually driving the CLI.
 
-A new Hermes session receives compact Agent Feeds metadata:
+A new Hermes session can inspect compact Agent Feeds metadata through the CLI:
 
 ```text
-<agentfeeds>
-Available local streams:
+agentfeeds streams list
 - weather/santa-clara-current: Santa Clara current weather
 - dev/hackernews-frontpage: Hacker News front page
 - finance/quote-btc: BTC quote
 - news/openai-com: OpenAI News
 - ops/hermes-gateway-health: Hermes gateway health
-
-When relevant, read ~/.agentfeeds/catalog.md to locate the state file before web search.
-</agentfeeds>
 ```
 
-The user then asks normal questions. Hermes decides when to read `~/.agentfeeds/catalog.md` and the matching `state/*.json` file before using web search.
+The user then asks normal questions. Hermes decides when to run `agentfeeds streams read <subscription-id> --json` before using web search.
 
 ![Agent Feeds interactive session demo](assets/agentfeeds-demo.gif)
 
@@ -37,7 +33,7 @@ Hermes starts with compact stream metadata, not bulky state data.
 What is on Hacker News right now?
 ```
 
-Hermes sees `dev/hackernews-frontpage`, reads the local state file, and answers from the fresh snapshot before web search.
+Hermes sees `dev/hackernews-frontpage`, reads it through `agentfeeds streams read`, and answers from the fresh snapshot before web search.
 
 ### 3. Personal ops awareness
 
@@ -45,7 +41,7 @@ Hermes sees `dev/hackernews-frontpage`, reads the local state file, and answers 
 Is my Hermes gateway healthy?
 ```
 
-Hermes sees `ops/hermes-gateway-health`, reads the local state file, and reports the current status.
+Hermes sees `ops/hermes-gateway-health`, reads it through `agentfeeds streams read`, and reports the current status.
 
 ### 4. Market and weather snapshots
 
@@ -69,8 +65,8 @@ Hermes sees active RSS/release streams, reads their local event files, and repor
 - **Compact prompt metadata:** the session sees stream names/IDs, not every state payload.
 - **Local state on demand:** Hermes reads detailed JSON only when relevant.
 - **Not memory:** durable facts belong in memory; fresh changing state belongs in feeds.
-- **Inspectable:** `catalog.md` points to the exact `state/*.json` files used for answers.
+- **Inspectable:** the CLI reports stream metadata and state paths for debugging without requiring raw file reads in normal agent flow.
 
 ## Suggested voiceover
 
-> Agent Feeds is most useful inside an agent session. Hermes starts with a compact list of local streams — weather, Hacker News, market quotes, OpenAI news, gateway health — but not all the raw data. When I ask a normal question, Hermes notices the relevant stream, reads the local state file, and answers from fresh inspectable context before using web search.
+> Agent Feeds is most useful inside an agent session. Hermes can inspect a compact list of local streams — weather, Hacker News, market quotes, OpenAI news, gateway health — without loading all the raw data. When I ask a normal question, Hermes notices the relevant stream, reads it through the Agent Feeds CLI, and answers from fresh inspectable context before using web search.

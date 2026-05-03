@@ -16,7 +16,7 @@ I have been building Agent Feeds, a local-first subscription layer for personal 
 
 The idea is simple: personal agents need fresh awareness of local and private state, but that state should not be dumped into every prompt. Agent Feeds keeps detailed data on disk under `~/.agentfeeds/state/`, injects only compact stream metadata into Hermes, and lets the agent read the right state file only when it is relevant.
 
-Current providers include local files, RSS/Atom, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and argv-only local commands. Local commands can produce either a current snapshot or JSON-derived events.
+Current templates include local files, RSS/Atom, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and argv-only local commands. Some templates are ready to subscribe as-is; others take parameters. Local commands can produce either a current snapshot or JSON-derived events.
 
 Repo: https://github.com/verkyyi/agentfeeds
 
@@ -32,7 +32,7 @@ git clone https://github.com/verkyyi/agentfeeds-hermes-plugin ~/.hermes/plugins-
 Then ask Hermes one prompt at a time:
 
 ```text
-What Agent Feeds providers can I subscribe to?
+What Agent Feeds templates can I subscribe to?
 ```
 
 ```text
@@ -54,19 +54,19 @@ Refresh Project notes and summarize it.
 Direct CLI inspection:
 
 ```bash
-agentfeeds discover hacker
+agentfeeds templates search hacker
 agentfeeds subscribe dev/hackernews-frontpage
-agentfeeds status
-cat ~/.agentfeeds/catalog.md
+agentfeeds streams list
+agentfeeds streams read dev/hackernews-frontpage --json
 ```
 
-Provider authoring smoke test:
+Template authoring smoke test:
 
 ```bash
-agentfeeds providers adapters
-agentfeeds providers scaffold local_command personal/status
-agentfeeds providers validate
-agentfeeds providers test personal/status --json
+agentfeeds templates adapters
+agentfeeds templates scaffold local_command personal/status
+agentfeeds templates validate
+agentfeeds templates test personal/status --json
 ```
 
 ## Release Notes Draft
@@ -84,14 +84,14 @@ Agent Feeds is a local-first ambient context layer for personal agents.
 
 This first release focuses on personal agents, with a standalone Hermes plugin available separately:
 - Hermes plugin and skill bundle: https://github.com/verkyyi/agentfeeds-hermes-plugin
-- built-in provider catalog: https://github.com/verkyyi/agentfeeds-catalog
+- built-in template catalog: https://github.com/verkyyi/agentfeeds-catalog
 - local subscriptions under ~/.agentfeeds
 - compact catalog injection
 - background fetcher with launchd/cron installer
-- built-in providers for local files, RSS, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, earthquakes, and ISS location
-- local provider authoring tools
+- built-in templates for local files, RSS, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, earthquakes, and ISS location
+- local template authoring tools
 - argv-only local_command adapter for snapshots and JSON-derived event streams
-- provider dry-run testing with agentfeeds providers test
+- template dry-run testing with agentfeeds templates test
 
 The core design is intentionally file-based: detailed state stays in JSON files on disk, and the agent reads it only when relevant.
 

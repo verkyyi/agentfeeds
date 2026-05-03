@@ -103,8 +103,8 @@ def fetch_lock(root: Path):
 def ensure_root(root: Path) -> None:
     (root / "catalog-cache").mkdir(parents=True, exist_ok=True)
     (root / "state").mkdir(parents=True, exist_ok=True)
-    (root / "providers" / "streams").mkdir(parents=True, exist_ok=True)
-    (root / "providers" / "schemas" / "event-types").mkdir(parents=True, exist_ok=True)
+    (root / "templates" / "streams").mkdir(parents=True, exist_ok=True)
+    (root / "templates" / "schemas" / "event-types").mkdir(parents=True, exist_ok=True)
     subscriptions = root / "subscriptions.yaml"
     if not subscriptions.exists():
         subscriptions.write_text(
@@ -130,16 +130,16 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def providers_root(root: Path) -> Path:
-    return root / "providers"
+def templates_root(root: Path) -> Path:
+    return root / "templates"
 
 
-def provider_streams_root(root: Path) -> Path:
-    return providers_root(root) / "streams"
+def template_streams_root(root: Path) -> Path:
+    return templates_root(root) / "streams"
 
 
-def provider_schemas_root(root: Path) -> Path:
-    return providers_root(root) / "schemas" / "event-types"
+def template_schemas_root(root: Path) -> Path:
+    return templates_root(root) / "schemas" / "event-types"
 
 
 def catalog_cache_root(root: Path) -> Path:
@@ -234,7 +234,7 @@ def load_catalog_index(root: Path) -> dict:
         update_catalog_cache(root)
     index = json.loads(cache.read_text(encoding="utf-8"))
     streams = {stream["id"]: {**stream, "source": stream.get("source") or "builtin"} for stream in index.get("streams", [])}
-    for path in sorted(provider_streams_root(root).glob("**/*.yaml")):
+    for path in sorted(template_streams_root(root).glob("**/*.yaml")):
         stream = stream_summary(path, root)
         if stream["id"] in streams:
             continue
@@ -257,7 +257,7 @@ def stream_summary(path: Path, root: Path) -> dict:
             rel_path = str(path)
             source = "local"
     try:
-        path.relative_to(provider_streams_root(root))
+        path.relative_to(template_streams_root(root))
         rel_path = str(path)
         source = "local"
     except ValueError:
@@ -315,8 +315,8 @@ def load_stream_definition(root: Path, stream_id: str, _refreshed: bool = False)
         else:
             candidate_paths.append(repo_root() / match["path"])
             candidate_paths.append(root / "catalog-cache" / match["path"])
-            candidate_paths.append(providers_root(root) / match["path"])
-    candidate_paths.extend(provider_streams_root(root).glob("**/*.yaml"))
+            candidate_paths.append(templates_root(root) / match["path"])
+    candidate_paths.extend(template_streams_root(root).glob("**/*.yaml"))
     candidate_paths.extend(builtin_stream_paths(root))
 
     for path in candidate_paths:
@@ -334,7 +334,7 @@ def load_stream_definition(root: Path, stream_id: str, _refreshed: bool = False)
 def schema_path_for_url(root: Path, schema_url: str) -> Path:
     name = schema_url.rstrip("/").split("/")[-1]
     for path in [
-        provider_schemas_root(root) / name,
+        template_schemas_root(root) / name,
         cached_event_schemas_root(root) / name,
         repo_root() / "catalog" / "schemas" / "event-types" / name,
     ]:
@@ -372,8 +372,8 @@ def validate_stream_file(path: Path, root: Path = DEFAULT_ROOT) -> None:
             raise ValueError(f"{path}: local_command event streams require adapter.parse: json")
 
 
-def validate_provider_tree(root: Path) -> list[Path]:
-    stream_paths = sorted(provider_streams_root(root).glob("**/*.yaml"))
+def validate_template_tree(root: Path) -> list[Path]:
+    stream_paths = sorted(template_streams_root(root).glob("**/*.yaml"))
     seen: dict[str, Path] = {}
     index = load_catalog_index(root)
     builtin_ids = {stream["id"] for stream in index.get("streams", []) if stream.get("source") != "local"}
@@ -381,9 +381,9 @@ def validate_provider_tree(root: Path) -> list[Path]:
         validate_stream_file(path, root)
         stream_id = yaml.safe_load(path.read_text(encoding="utf-8"))["id"]
         if stream_id in builtin_ids:
-            raise ValueError(f"{path}: local provider id conflicts with built-in provider: {stream_id}")
+            raise ValueError(f"{path}: local template id conflicts with built-in template: {stream_id}")
         if stream_id in seen:
-            raise ValueError(f"{path}: duplicate local provider id also defined in {seen[stream_id]}: {stream_id}")
+            raise ValueError(f"{path}: duplicate local template id also defined in {seen[stream_id]}: {stream_id}")
         seen[stream_id] = path
     return stream_paths
 
@@ -486,8 +486,8 @@ def poll_interval(subscription: dict, stream: dict, defaults: dict) -> int:
     )
 
 
-def provider_id_for(subscription: dict) -> str:
-    return str(subscription["provider"])
+def template_id_for(subscription: dict) -> str:
+    return str(subscription["template"])
 
 
 def subscription_title(subscription: dict, stream: dict) -> str:
@@ -495,7 +495,7 @@ def subscription_title(subscription: dict, stream: dict) -> str:
 
 
 def state_path_for_subscription(root: Path, subscription: dict) -> Path:
-    stream = load_stream_definition(root, provider_id_for(subscription))
+    stream = load_stream_definition(root, template_id_for(subscription))
     stream_uri = source_uri_for(stream, subscription.get("parameters") or {})
     return state_path_for_stream(stream_uri, root)
 
@@ -536,7 +536,7 @@ def state_payload(
         "publisher": publisher_for(stream_uri),
         "stale": False,
         "subscription_id": subscription["id"],
-        "provider_id": stream["id"],
+        "template_id": stream["id"],
         "title": subscription_title(subscription, stream),
     }
 
@@ -570,14 +570,14 @@ def regenerate_catalog(root: Path) -> None:
     lines = [
         "# Agent Feeds - Active Subscriptions",
         "",
-        "This file lists data streams currently subscribed. Detailed state lives in `state/<...>.json`. Read those files when the user asks about the relevant topic.",
+        "This file lists data streams currently subscribed. Prefer `agentfeeds streams read <subscription-id> --json` for normal agent access.",
         "",
     ]
     state_entries = []
     try:
         subscriptions = load_subscriptions(root).get("subscriptions") or []
         for subscription in subscriptions:
-            stream = load_stream_definition(root, provider_id_for(subscription))
+            stream = load_stream_definition(root, template_id_for(subscription))
             parameters = subscription.get("parameters") or {}
             stream_uri = source_uri_for(stream, parameters)
             path = state_path_for_stream(stream_uri, root)
@@ -596,7 +596,7 @@ def regenerate_catalog(root: Path) -> None:
             [
                 f"## {title}",
                 f"- **ID:** `{subscription.get('id', '')}`",
-                f"- **Provider:** `{provider_id_for(subscription)}`",
+                f"- **Template:** `{template_id_for(subscription)}`",
                 f"- **Stream:** `{meta.get('stream') or stream_uri}`",
                 f"- **Path:** `{rel_path}`",
                 f"- **Updated:** {meta.get('last_updated', 'never')}",
@@ -609,7 +609,7 @@ def regenerate_catalog(root: Path) -> None:
     lines.extend(
         [
             "---",
-            f"*Last regenerated: {now_utc()}. Agent: when the user asks about a topic above, read the corresponding state file. Do not web-search if a non-stale state file covers the question.*",
+            f"*Last regenerated: {now_utc()}.*",
             "",
         ]
     )
@@ -633,7 +633,7 @@ def run_fetch(args: argparse.Namespace, root: Path) -> int:
     failures = 0
     for subscription in active:
         try:
-            stream = load_stream_definition(root, provider_id_for(subscription))
+            stream = load_stream_definition(root, template_id_for(subscription))
             parameters = subscription.get("parameters") or {}
             stream_uri = source_uri_for(stream, parameters)
             path = state_path_for_stream(stream_uri, root)

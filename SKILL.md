@@ -1,8 +1,8 @@
 ---
 name: agentfeeds
-description: Use Agent Feeds to discover, subscribe to, refresh, and answer from local ambient context streams stored under ~/.agentfeeds. Use when the user asks about feeds, subscriptions, provider catalogs, local state files, RSS/news/GitHub/calendar/weather context, or wants fresh local context before web search.
+description: Use Agent Feeds to discover feed templates, subscribe to them, refresh streams, and answer from local ambient context stored under ~/.agentfeeds. Use when the user asks about feeds, subscriptions, templates, local state files, RSS/news/GitHub/calendar/weather context, or wants fresh local context before web search.
 license: MIT
-compatibility: Requires shell access, Python 3.11+, and either uv or installed Agent Feeds CLI entry points. Network access is needed for remote catalog updates and public providers.
+compatibility: Requires shell access, Python 3.11+, and either uv or installed Agent Feeds CLI entry points. Network access is needed for remote catalog updates and public feed templates.
 metadata:
   author: verkyyi
   version: "0.1.0"
@@ -13,26 +13,18 @@ metadata:
 
 Agent Feeds is a local-first ambient context layer for agents. It keeps refreshable stream state on disk so agents can answer from local, inspectable context before re-searching or asking the user to repeat information.
 
-Use this skill when the user asks to discover providers, subscribe to a feed/source, refresh feed data, inspect Agent Feeds state, answer from subscribed streams, or draft/test a local provider.
+Use this skill when the user asks to discover templates, subscribe to a feed/source, refresh feed data, inspect Agent Feeds state, answer from subscribed streams, or draft/test a local template.
 
 ## Runtime Model
 
 Agent Feeds uses two command-line entry points:
 
 ```bash
-agentfeeds        # management CLI: discover, subscribe, status, providers
+agentfeeds        # management CLI: templates, subscribe, streams, template authoring
 agentfeeds-fetch  # worker CLI: refresh subscriptions, update catalog cache, write state
 ```
 
-Runtime files live under `~/.agentfeeds/`:
-
-- `subscriptions.yaml` is the source of truth for active subscriptions.
-- `catalog-cache/` contains cached built-in provider definitions from `agentfeeds-catalog`.
-- `catalog.md` summarizes active subscriptions for agent use.
-- `state/` contains JSON state files written by `agentfeeds-fetch`.
-- `providers/` contains user-local provider YAML and schemas.
-
-Treat `~/.agentfeeds/state/` as fetcher-owned. Never hand-edit state files.
+Runtime state defaults to `~/.agentfeeds/`, but agents should treat the file layout as an implementation detail. Prefer the `agentfeeds` CLI for discovery, subscription inspection, state reads, and local template paths. Only inspect files directly when debugging, authoring a local template after `agentfeeds templates scaffold`, or when the CLI is unavailable.
 
 ## Command Availability
 
@@ -52,18 +44,23 @@ uv run --project <agentfeeds-skill-root> agentfeeds-fetch --help
 
 Use the direct command names in examples below. If needed, replace them with the `uv run --project ...` form.
 
+Vocabulary:
+
+- Template: reusable feed definition. Some templates are ready to subscribe with no parameters; others require parameters.
+- Subscription: configured active instance of a template.
+- Stream: readable refreshed data for an active subscription.
+
 ## Session Start
 
-If `~/.agentfeeds/catalog.md` exists, read it before answering questions that may be covered by local streams. It points to the concrete state files to inspect.
+Use `agentfeeds streams list` or `agentfeeds streams search <topic>` to discover active local context. Do not read raw state files during normal operation.
 
-If `catalog.md` does not exist, continue normally. The user may not have subscribed to streams yet.
-
-## Discover Providers
+## Discover Templates
 
 When the user asks what Agent Feeds can subscribe to:
 
 ```bash
-agentfeeds discover <query>
+agentfeeds templates search <query>
+agentfeeds templates show <template-id>
 ```
 
 If the catalog cache is missing or stale, run:
@@ -78,8 +75,8 @@ Then retry discovery.
 
 When the user asks to subscribe to a source:
 
-1. Identify the provider with `agentfeeds discover <query>`.
-2. Collect required parameters from the provider match.
+1. Identify the template with `agentfeeds templates search <query>`.
+2. Collect required parameters from the template match.
 3. Subscribe with the management CLI.
 
 Examples:
@@ -93,18 +90,17 @@ agentfeeds subscribe local/file path=~/notes/project.md --title "Project notes"
 After subscribing, read or refresh the resulting state before summarizing what changed:
 
 ```bash
-agentfeeds status
+agentfeeds streams list
 ```
 
 ## Answer From Local State
 
 When the user asks about a topic covered by a subscribed stream:
 
-1. Read `~/.agentfeeds/catalog.md`.
-2. Locate the matching state path under `~/.agentfeeds/state/`.
-3. Read the JSON state file.
-4. Check `_meta.stale`.
-5. If stale and freshness matters, refresh the stream before answering.
+1. Find candidate active streams with `agentfeeds streams search <topic>`.
+2. Inspect metadata with `agentfeeds streams show <subscription-id> --json`.
+3. If stale and freshness matters, refresh the stream before answering.
+4. Read compact data with `agentfeeds streams read <subscription-id> --limit 20 --json`.
 
 Refresh one subscription:
 
@@ -125,36 +121,36 @@ If a non-stale state file covers the question, answer from it and avoid web sear
 When the user asks to remove a subscription:
 
 ```bash
-agentfeeds list
+agentfeeds streams list
 agentfeeds unsubscribe <subscription-id>
 ```
 
-If the user names a provider template instead of a concrete subscription, list matching active subscriptions and ask which one to remove.
+If the user names a template instead of a concrete subscription, list matching active streams and ask which one to remove.
 
-## Local Provider Authoring
+## Local Template Authoring
 
-When no built-in provider fits:
+When no built-in template fits:
 
-1. Run `agentfeeds providers adapters`.
-2. Draft a local provider with `agentfeeds providers scaffold <adapter-kind> <provider-id>`.
-3. Edit the generated provider YAML under `~/.agentfeeds/providers/streams/`.
+1. Run `agentfeeds templates adapters`.
+2. Draft a local template with `agentfeeds templates scaffold <adapter-kind> <template-id>`.
+3. Edit the generated template YAML at the path reported by the scaffold command or under `agentfeeds templates path`.
 4. Validate and test before subscribing.
 
 Commands:
 
 ```bash
-agentfeeds providers path
-agentfeeds providers scaffold local_file personal/notes
-agentfeeds providers validate
-agentfeeds providers test <provider-id> key=value
+agentfeeds templates path
+agentfeeds templates scaffold local_file personal/notes
+agentfeeds templates validate
+agentfeeds templates test <template-id> key=value
 ```
 
-For `local_command` providers, use argv arrays only. Only create command providers for explicitly requested or approved read-only commands. Avoid commands that mutate files, cloud resources, accounts, or external services.
+For `local_command` templates, use argv arrays only. Only create command templates for explicitly requested or approved read-only commands. Avoid commands that mutate files, cloud resources, accounts, or external services.
 
 ## Safety Rules
 
 - Use `agentfeeds subscribe` and `agentfeeds unsubscribe` for subscription changes.
 - Use `agentfeeds-fetch` or `agentfeeds refresh` for refreshes.
-- Do not hand-write files in `~/.agentfeeds/state/`.
-- Do not include secrets in provider YAML.
-- Prefer local/private providers for personal-agent context before suggesting public feeds.
+- Do not hand-write state files.
+- Do not include secrets in template YAML.
+- Prefer local/private templates for personal-agent context before suggesting public feeds.

@@ -70,9 +70,9 @@ def test_load_stream_definition_uses_catalog_cache(tmp_path):
     assert stream["adapter"]["kind"] == "local_file"
 
 
-def test_local_provider_is_discoverable_and_validates(tmp_path):
-    stream_dir = tmp_path / "providers" / "streams" / "personal"
-    schema_dir = tmp_path / "providers" / "schemas" / "event-types"
+def test_local_template_is_discoverable_and_validates(tmp_path):
+    stream_dir = tmp_path / "templates" / "streams" / "personal"
+    schema_dir = tmp_path / "templates" / "schemas" / "event-types"
     stream_dir.mkdir(parents=True)
     schema_dir.mkdir(parents=True)
     (schema_dir / "personal.note.v1.json").write_text(
@@ -93,7 +93,7 @@ def test_local_provider_is_discoverable_and_validates(tmp_path):
             {
                 "id": "personal/note",
                 "title": "Personal note",
-                "description": "Read-only test provider.",
+                "description": "Read-only test template.",
                 "type": "personal.note",
                 "mode": "snapshot",
                 "schema_url": "https://agentfeeds.dev/schemas/personal.note.v1.json",
@@ -120,22 +120,22 @@ def test_local_provider_is_discoverable_and_validates(tmp_path):
 
     fetch.ensure_root(tmp_path)
     index = fetch.load_catalog_index(tmp_path)
-    provider = next(stream for stream in index["streams"] if stream["id"] == "personal/note")
+    template = next(stream for stream in index["streams"] if stream["id"] == "personal/note")
 
-    assert provider["source"] == "local"
-    assert provider["parameters"] == ["path"]
-    assert fetch.validate_provider_tree(tmp_path) == [stream_dir / "note.yaml"]
+    assert template["source"] == "local"
+    assert template["parameters"] == ["path"]
+    assert fetch.validate_template_tree(tmp_path) == [stream_dir / "note.yaml"]
 
 
-def test_local_provider_cannot_override_builtin(tmp_path):
-    stream_dir = tmp_path / "providers" / "streams" / "local"
+def test_local_template_cannot_override_builtin(tmp_path):
+    stream_dir = tmp_path / "templates" / "streams" / "local"
     stream_dir.mkdir(parents=True)
     (stream_dir / "file.yaml").write_text(
         yaml.safe_dump(
             {
                 "id": "local/file",
                 "title": "Overridden file",
-                "description": "Conflicting provider.",
+                "description": "Conflicting template.",
                 "type": "local.file",
                 "mode": "snapshot",
                 "schema_url": "https://agentfeeds.dev/schemas/local.file.v1.json",
@@ -155,12 +155,12 @@ def test_local_provider_cannot_override_builtin(tmp_path):
 
     fetch.ensure_root(tmp_path)
     index = fetch.load_catalog_index(tmp_path)
-    provider = next(stream for stream in index["streams"] if stream["id"] == "local/file")
+    template = next(stream for stream in index["streams"] if stream["id"] == "local/file")
 
-    assert provider["title"] == "Local file"
+    assert template["title"] == "Local file"
     try:
-        fetch.validate_provider_tree(tmp_path)
+        fetch.validate_template_tree(tmp_path)
     except ValueError as exc:
-        assert "conflicts with built-in provider" in str(exc)
+        assert "conflicts with built-in template" in str(exc)
     else:  # pragma: no cover
-        raise AssertionError("expected duplicate provider validation failure")
+        raise AssertionError("expected duplicate template validation failure")

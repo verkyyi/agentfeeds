@@ -54,7 +54,7 @@ def test_once_fetch_writes_snapshot_state_and_catalog(tmp_path, monkeypatch):
             subscriptions:
               - id: weather/santa-clara-current
                 title: Santa Clara current weather
-                provider: weather/openmeteo-current
+                template: weather/openmeteo-current
                 parameters:
                   lat: 37.33
                   lon: -121.89
@@ -87,7 +87,7 @@ def test_once_fetch_writes_snapshot_state_and_catalog(tmp_path, monkeypatch):
     state_path = tmp_path / "state" / "api.open-meteo.com" / "v1.forecast.latitude=37.33,longitude=-121.89.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["_meta"]["subscription_id"] == "weather/santa-clara-current"
-    assert state["_meta"]["provider_id"] == "weather/openmeteo-current"
+    assert state["_meta"]["template_id"] == "weather/openmeteo-current"
     assert state["_meta"]["title"] == "Santa Clara current weather"
     assert state["_meta"]["stale"] is False
     assert state["data"]["temperature_c"] == 22.1
@@ -118,7 +118,7 @@ def test_event_state_merges_dedups_and_truncates(tmp_path):
         {"id": "b", "data": {"value": 22}},
     ]
 
-    subscription = {"id": "dev/example-instance", "title": "Example instance", "provider": "dev/example"}
+    subscription = {"id": "dev/example-instance", "title": "Example instance", "template": "dev/example"}
     payload = fetcher.state_payload(subscription, stream, stream_uri, events, existing, 600, 2)
 
     assert [event["id"] for event in payload["data"]] == ["c", "b"]
@@ -140,7 +140,7 @@ def test_local_file_fetch_writes_snapshot_state(tmp_path):
             subscriptions:
               - id: local/notes-md
                 title: notes.md
-                provider: local/file
+                template: local/file
                 parameters:
                   path: {source}
             """
@@ -155,7 +155,7 @@ def test_local_file_fetch_writes_snapshot_state(tmp_path):
     assert state_files[0].name.startswith("file.notes.md.")
     state = json.loads(state_files[0].read_text(encoding="utf-8"))
     assert state["_meta"]["subscription_id"] == "local/notes-md"
-    assert state["_meta"]["provider_id"] == "local/file"
+    assert state["_meta"]["template_id"] == "local/file"
     assert state["data"]["path"] == str(source)
     assert state["data"]["name"] == "notes.md"
     assert state["data"]["content"] == "# Notes\n\nLocal context.\n"
@@ -349,7 +349,7 @@ def test_calendar_ics_fetch_writes_event_state(tmp_path, monkeypatch):
             subscriptions:
               - id: calendar/example-com
                 title: Example calendar
-                provider: calendar/ics
+                template: calendar/ics
                 parameters:
                   url: https://example.com/calendar.ics
             """
@@ -383,5 +383,5 @@ def test_calendar_ics_fetch_writes_event_state(tmp_path, monkeypatch):
     state_path = tmp_path / "state" / "calendar.local" / "ics.url=https:/example.com/calendar.ics.json"
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["_meta"]["subscription_id"] == "calendar/example-com"
-    assert state["_meta"]["provider_id"] == "calendar/ics"
+    assert state["_meta"]["template_id"] == "calendar/ics"
     assert state["data"][0]["data"]["summary"] == "Example event"

@@ -49,7 +49,7 @@ Primary users:
 
 - Hermes operators who use Hermes as a personal agent.
 - Users who want their agent to stay aware of local/private state.
-- Builders creating custom provider adapters for their own workflows.
+- Builders creating custom feed templates for their own workflows.
 
 Secondary users:
 
@@ -68,11 +68,11 @@ Hermes should not carry every subscribed data source in every prompt. The inject
 
 ### Agent-Orchestrated
 
-The expected UX is conversational. Users should be able to ask Hermes to subscribe, refresh, inspect, or draft providers without knowing CLI flags.
+The expected UX is conversational. Users should be able to ask Hermes to subscribe, refresh, inspect, or draft templates without knowing CLI flags.
 
 ### Inspectable
 
-Everything important is plain files: subscription YAML, catalog Markdown, provider YAML, JSON schemas, and JSON state.
+Everything important is plain files: subscription YAML, catalog Markdown, template YAML, JSON schemas, and JSON state.
 
 ### Fast To Re-Onboard
 
@@ -80,13 +80,13 @@ A new Hermes session should quickly learn what local streams exist by reading co
 
 ### Extensible By Operators
 
-Operators should be able to add private/local sources without waiting for upstream support. Hermes can draft provider YAML and test it before installing it into live subscriptions.
+Operators should be able to add private/local sources without waiting for upstream support. Hermes can draft template YAML and test it before installing it into live subscriptions.
 
 ## Core Concepts
 
-### Provider
+### Template
 
-A provider is a reusable stream template. It defines where data comes from and how to fetch it.
+A template is a reusable feed definition. It defines where data comes from and how to fetch it. Some templates are ready to subscribe as-is; others require parameters.
 
 Examples:
 
@@ -97,7 +97,7 @@ Examples:
 
 ### Subscription
 
-A subscription is a concrete active instance of a provider.
+A subscription is a concrete active instance of a template.
 
 Examples:
 
@@ -107,19 +107,19 @@ Examples:
 
 Templates are for discovery. Subscriptions are active context.
 
-### State File
+### Stream Data
 
-A state file is the detailed JSON payload that Hermes reads when the user asks a related question.
+Stream data is the detailed JSON payload that Hermes reads when the user asks a related question.
 
-State files are timestamped, structured, and stored under `~/.agentfeeds/state`.
+Agents should read it through `agentfeeds streams read <subscription-id> --json`. The underlying state files remain timestamped, structured, and inspectable on disk for debugging.
 
-### Catalog
+### Active Stream Map
 
-`~/.agentfeeds/catalog.md` is the compact active-stream map. Hermes uses it to locate state files without loading all data into the prompt.
+`agentfeeds streams list` and `agentfeeds streams search` provide the compact active-stream map. Hermes uses that map to locate relevant subscribed context without loading all data into the prompt.
 
 ### Adapter
 
-An adapter is the fetch mechanism behind a provider. Current adapter types include HTTP JSON, RSS, iCalendar, local files, and local commands.
+An adapter is the fetch mechanism behind a template. Current adapter types include HTTP JSON, RSS, iCalendar, local files, and local commands.
 
 ## Primary Use Cases
 
@@ -147,7 +147,7 @@ User asks:
 Subscribe my project notes at ~/notes/project.md as Project notes.
 ```
 
-Hermes subscribes through the local file provider. Future sessions can see that "Project notes" exists and read the state file when relevant.
+Hermes subscribes through the local file template. Future sessions can see that "Project notes" exists and read the stream through the CLI when relevant.
 
 Benefit:
 
@@ -190,7 +190,7 @@ Benefit:
 - useful current context without every turn carrying feed contents
 - consistent state shape across different sources
 
-### 5. Custom Local Command Providers
+### 5. Custom Local Command Templates
 
 User asks:
 
@@ -198,13 +198,13 @@ User asks:
 Can Agent Feeds subscribe to my local task database?
 ```
 
-If no provider exists, Hermes can draft a `local_command` provider that runs an operator-approved read-only command. The command can output one snapshot or a JSON list of events.
+If no template exists, Hermes can draft a `local_command` template that runs an operator-approved read-only command. The command can output one snapshot or a JSON list of events.
 
 Benefit:
 
 - private tools become agent-readable without building a full API
 - commands are explicit argv arrays, not shell strings
-- provider testing can happen before live subscription
+- template testing can happen before live subscription
 
 ### 6. New Hermes Session Onboarding
 
@@ -231,7 +231,7 @@ Benefit:
 The preferred interface is natural language through Hermes. Each example is meant to be used as a single message:
 
 ```text
-What Agent Feeds providers can I subscribe to?
+What Agent Feeds templates can I subscribe to?
 ```
 
 ```text
@@ -247,16 +247,16 @@ Refresh Project notes and summarize it.
 ```
 
 ```text
-Can Agent Feeds subscribe to my SQLite task database? If not, draft a provider.
+Can Agent Feeds subscribe to my SQLite task database? If not, draft a template.
 ```
 
 The CLI exists for inspection, debugging, and agent orchestration:
 
 ```bash
-agentfeeds discover local
+agentfeeds templates search local
 agentfeeds subscribe local/file path=~/notes/project.md --title "Project notes"
-agentfeeds status
-agentfeeds providers test personal/tasks --json
+agentfeeds streams list
+agentfeeds templates test personal/tasks --json
 ```
 
 Users should not need to memorize these commands for normal operation.
@@ -285,15 +285,15 @@ Local notes, files, and command outputs stay in the user's `~/.agentfeeds` direc
 
 ### Operator Extensibility
 
-Users can add custom providers for private tools, local files, dashboards, or command outputs.
+Users can add custom templates for private tools, local files, dashboards, or command outputs.
 
 ### Debuggability
 
-Every layer is readable:
+Every layer is readable for debugging:
 
-- `subscriptions.yaml`
-- `catalog.md`
-- provider YAML
+- active subscription YAML
+- compact catalog fallback
+- template YAML
 - JSON schemas
 - JSON state files
 
@@ -305,7 +305,7 @@ Agent Feeds are ambient. They tell Hermes what local streams exist and where to 
 
 They are complementary:
 
-- Skills: "How do I subscribe, refresh, or author a provider?"
+- Skills: "How do I subscribe, refresh, or author a template?"
 - Feeds: "What subscribed context is available right now?"
 
 Together they let Hermes both act and stay aware.
@@ -338,7 +338,7 @@ Agent Feeds is working if:
 - New sessions quickly discover existing local streams.
 - Users see faster answers for refreshed streams.
 - Users spend fewer tokens carrying bulky context.
-- Operators can add custom providers without editing core code.
+- Operators can add custom templates without editing core code.
 - State files are easy to inspect and trust.
 
 ## Current Product Surface
@@ -346,23 +346,23 @@ Agent Feeds is working if:
 Available today:
 
 - standalone Hermes plugin and skill bundle
-- standalone built-in provider catalog
+- standalone built-in template catalog
 - local subscription root at `~/.agentfeeds`
 - compact catalog injection
 - state files as JSON
 - background fetcher
-- built-in providers for local files, RSS, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, USGS earthquakes, and ISS location
-- local provider authoring
+- built-in templates for local files, RSS, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, USGS earthquakes, and ISS location
+- local template authoring
 - local command adapter for snapshots and JSON-derived event streams
-- provider dry-run testing
+- template dry-run testing
 
 ## Future Directions
 
 High-value next steps:
 
-- more personal/private built-in providers
+- more personal/private built-in templates
 - first-class examples for common Hermes operator workflows
 - stronger local-command safety metadata
-- richer provider authoring recipes
-- provider packs for specific personal-agent setups
+- richer template authoring recipes
+- template packs for specific personal-agent setups
 - visual or textual demos showing before/after token and response-time improvements
