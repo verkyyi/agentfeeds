@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import hashlib
 import json
+import os
 import plistlib
 import platform
 import re
@@ -16,12 +18,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-import feedparser
-import requests
 import yaml
 
 from agentfeeds_runtime import fetcher as fetch
-from agentfeeds_runtime.constants import REQUEST_TIMEOUT_SECONDS
 from agentfeeds_runtime.polling import install as polling_install
 from agentfeeds_runtime.polling import uninstall as polling_uninstall
 
@@ -38,6 +37,7 @@ ADAPTER_KINDS = {
 POLLING_LABEL = "dev.agentfeeds.fetch"
 POLLING_BEGIN_MARKER = "# BEGIN Agent Feeds polling"
 POLLING_END_MARKER = "# END Agent Feeds polling"
+SECRET_REF_PATTERN = re.compile(r"\{\{secret:([A-Za-z_][A-Za-z0-9_.-]*)\}\}")
 QUERY_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 QUERY_STOPWORDS = {
     "about",
@@ -111,6 +111,19 @@ def save_subscriptions(root: Path, config: dict) -> None:
     tmp_path = path.with_suffix(".yaml.tmp")
     tmp_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     tmp_path.replace(path)
+
+
+def secret_refs_in_template(value: object) -> set[str]:
+    refs: set[str] = set()
+    if isinstance(value, str):
+        refs.update(SECRET_REF_PATTERN.findall(value))
+    elif isinstance(value, list):
+        for item in value:
+            refs.update(secret_refs_in_template(item))
+    elif isinstance(value, dict):
+        for item in value.values():
+            refs.update(secret_refs_in_template(item))
+    return refs
 
 
 def active_subscriptions(root: Path) -> dict:
@@ -258,6 +271,8 @@ def scaffold_stream(template_id: str, adapter_kind: str) -> tuple[dict, dict, Pa
         "quality_tier": "experimental",
         "contributed_by": "local",
     }
+    if adapter_kind == "local_command":
+        stream["pending"] = True
     return stream, _schema_payload(template_id, mode), stream_path, schema_path
 
 
@@ -268,41 +283,6 @@ def _domain_slug(domain: str) -> str:
 def _domain_title(domain: str, suffix: str = "RSS feed") -> str:
     base = domain.removeprefix("www.").split(".")[0]
     return f"{base.replace('-', ' ').title()} {suffix}".strip()
-
-
-def _rss_identity(url: str) -> tuple[str | None, str | None]:
-    parsed = None
-    try:
-        response = requests.get(url, timeout=REQUEST_TIMEOUT_SECONDS)
-        response.raise_for_status()
-        parsed = feedparser.parse(response.content)
-    except Exception:
-        parsed = None
-
-    domains = []
-    if parsed is not None:
-        for entry in getattr(parsed, "entries", []) or []:
-            link = entry.get("link")
-            if not link:
-                continue
-            domain = urlparse(link).netloc.lower()
-            if domain:
-                domains.append(domain)
-
-    domain = None
-    if domains:
-        domain = Counter(domains).most_common(1)[0][0]
-    if not domain:
-        domain = urlparse(url).netloc.lower() or None
-
-    title = None
-    if parsed is not None:
-        feed = getattr(parsed, "feed", {}) or {}
-        if feed.get("title"):
-            title = str(feed["title"])
-    if not title and domain:
-        title = _domain_title(domain)
-    return domain, title
 
 
 def _default_identity(template: dict, params: dict[str, Any]) -> tuple[str, str]:
@@ -336,9 +316,9 @@ def _default_identity(template: dict, params: dict[str, Any]) -> tuple[str, str]
             return f"{category}/{_domain_slug(parsed.netloc)}", f"{_domain_title(parsed.netloc, 'calendar')}"
 
     if template_id == "news/rss-generic" and params.get("url"):
-        domain, rss_title = _rss_identity(str(params["url"]))
+        domain = urlparse(str(params["url"])).netloc.lower() or None
         if domain:
-            return f"{category}/{_domain_slug(domain)}", rss_title or _domain_title(domain)
+            return f"{category}/{_domain_slug(domain)}", _domain_title(domain)
 
     if params.get("url"):
         parsed = urlparse(str(params["url"]))
@@ -405,6 +385,40 @@ def materialize_subscription(
     if params:
         subscription["parameters"] = params
     return subscription
+
+
+def subscription_preview(root: Path, stream: dict, subscription: dict) -> dict:
+    parameters = subscription.get("parameters") or {}
+    stream_uri = fetch.source_uri_for(stream, parameters)
+    state_path = fetch.state_path_for_stream(stream_uri, root)
+    preview = {
+        "subscription": subscription,
+        "stream": stream_uri,
+        "state_path": str(state_path.relative_to(root)),
+        "requires_secrets": sorted(secret_refs_in_template(stream)),
+        "next_actions": [],
+    }
+    if stream.get("pending") and stream.get("adapter", {}).get("kind") == "local_command":
+        preview["next_actions"].append(
+            {
+                "action": "approve_local_command",
+                "template_id": stream["id"],
+                "command": f"python3 scripts/agentfeeds.py admin templates approve-command {stream['id']}",
+                "reason": "local_command template is pending operator approval",
+            }
+        )
+    return preview
+
+
+def local_template_file(root: Path, template_id: str) -> Path | None:
+    for path in sorted(fetch.template_streams_root(root).glob("**/*.yaml")):
+        try:
+            payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            continue
+        if payload.get("id") == template_id:
+            return path
+    return None
 
 
 def cmd_templates_search(args: argparse.Namespace) -> int:
@@ -497,7 +511,22 @@ def cmd_subscribe(args: argparse.Namespace) -> int:
 
     existing_ids = {str(item.get("id")) for item in subscriptions}
     try:
-        subscription = materialize_subscription(stream, params, existing_ids, args.instance_id, args.title)
+        if args.update:
+            match = next((item for item in subscriptions if item.get("id") == args.update), None)
+            if not match:
+                raise ValueError(f"subscription id not found for update: {args.update}")
+            subscription = dict(match)
+            subscription["template"] = stream["id"]
+            if args.title:
+                subscription["title"] = args.title
+            elif "title" not in subscription:
+                subscription["title"] = stream.get("title") or args.update
+            if params:
+                subscription["parameters"] = params
+            elif "parameters" in subscription:
+                subscription.pop("parameters")
+        else:
+            subscription = materialize_subscription(stream, params, existing_ids, args.instance_id, args.title)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
@@ -506,9 +535,48 @@ def cmd_subscribe(args: argparse.Namespace) -> int:
     if args.history_limit:
         subscription["history_limit"] = args.history_limit
 
-    subscriptions.append(subscription)
+    preview = subscription_preview(args.root, stream, subscription)
+    if preview["requires_secrets"]:
+        preview["next_actions"].append(
+            {
+                "action": "set_secret",
+                "names": preview["requires_secrets"],
+                "command": "python3 scripts/agentfeeds.py admin secrets set <name>",
+            }
+        )
+    if args.dry_run:
+        if args.json:
+            print(json.dumps(preview, indent=2, sort_keys=True))
+        else:
+            print(f"Subscription: {subscription['id']} ({subscription['title']})")
+            print(f"Template: {subscription['template']}")
+            print(f"State path: {preview['state_path']}")
+            if preview["requires_secrets"]:
+                print(f"Secrets: {', '.join(preview['requires_secrets'])}")
+        return 0
+
+    pending_approval = next((action for action in preview["next_actions"] if action["action"] == "approve_local_command"), None)
+    if pending_approval:
+        if args.json:
+            print(json.dumps({**preview, "error": "local_command template is pending operator approval"}, indent=2, sort_keys=True))
+        else:
+            print(f"{stream['id']}: local_command template is pending operator approval", file=sys.stderr)
+            print(f"Next: {pending_approval['command']}", file=sys.stderr)
+        return 2
+
+    if args.update:
+        for index, item in enumerate(subscriptions):
+            if item.get("id") == args.update:
+                subscriptions[index] = subscription
+                break
+    else:
+        subscriptions.append(subscription)
     save_subscriptions(args.root, config)
-    print(f"Subscribed: {subscription['id']} ({subscription['title']})")
+    if args.json:
+        result = {**preview, "created": not bool(args.update), "updated": bool(args.update)}
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"{'Updated' if args.update else 'Subscribed'}: {subscription['id']} ({subscription['title']})")
 
     if args.no_fetch:
         fetch.regenerate_catalog(args.root)
@@ -650,7 +718,36 @@ def _stream_health(root: Path) -> dict:
         "error": counts.get("error", 0),
     }
     summary["healthy"] = summary["total"] > 0 and summary["missing"] == 0 and summary["error"] == 0 and summary["stale"] == 0
-    return {"summary": summary, "streams": streams}
+    next_actions = []
+    if summary["error"]:
+        next_actions.append(
+            {
+                "action": "inspect_errors",
+                "command": "python3 scripts/agentfeeds.py streams health --json",
+                "reason": "one or more streams have active fetch errors",
+            }
+        )
+    stale_stream = next((row for row in streams if row["health"] == "stale"), None)
+    if stale_stream:
+        next_actions.append(
+            {
+                "action": "refresh_stream",
+                "subscription_id": stale_stream["id"],
+                "command": f"python3 scripts/agentfeeds.py refresh --stream {stale_stream['id']}",
+                "reason": "stream state is stale",
+            }
+        )
+    missing_stream = next((row for row in streams if row["health"] == "missing"), None)
+    if missing_stream:
+        next_actions.append(
+            {
+                "action": "refresh_stream",
+                "subscription_id": missing_stream["id"],
+                "command": f"python3 scripts/agentfeeds.py refresh --stream {missing_stream['id']}",
+                "reason": "stream has no local state file yet",
+            }
+        )
+    return {"summary": summary, "streams": streams, "next_actions": next_actions}
 
 
 def _print_health(result: dict) -> None:
@@ -692,8 +789,24 @@ def _brief_entries(root: Path, max_streams: int, include_freshness: bool) -> tup
     return entries, len(rows) > max_streams
 
 
-def render_brief(entries: list[dict], truncated: bool, include_freshness: bool) -> str:
+def _brief_health_summary(health: dict) -> str | None:
+    summary = health["summary"]
+    degraded = summary["stale"] or summary["missing"] or summary["error"]
+    if not degraded:
+        return None
+    parts = []
+    for key in ("stale", "missing", "error"):
+        if summary[key]:
+            parts.append(f"{summary[key]} {key}")
+    return "Ambient health: degraded (" + ", ".join(parts) + ")"
+
+
+def render_brief(entries: list[dict], truncated: bool, include_freshness: bool, health: dict | None = None) -> str:
     lines = ["<agentfeeds>"]
+    if health:
+        health_line = _brief_health_summary(health)
+        if health_line:
+            lines.append(health_line)
     if entries:
         lines.append("Available local streams:")
         for entry in entries:
@@ -712,12 +825,14 @@ def render_brief(entries: list[dict], truncated: bool, include_freshness: bool) 
 def cmd_brief(args: argparse.Namespace) -> int:
     fetch.ensure_root(args.root)
     entries, truncated = _brief_entries(args.root, args.max_streams, args.include_freshness)
-    brief = render_brief(entries, truncated, args.include_freshness)
+    health = _stream_health(args.root)
+    brief = render_brief(entries, truncated, args.include_freshness, health)
     if args.json:
         print(
             json.dumps(
                 {
                     "brief": brief,
+                    "health": health["summary"],
                     "streams": entries,
                     "truncated": truncated,
                     "stable": not args.include_freshness,
@@ -1210,7 +1325,7 @@ def cmd_templates_scaffold(args: argparse.Namespace) -> int:
         print(f"schema: built-in {stream['schema_url']}")
     else:
         print(f"wrote: {schema_path}")
-    print("Next: edit the draft, then run `python3 scripts/agentfeeds.py templates validate`.")
+    print("Next: edit the draft, then run `python3 scripts/agentfeeds.py admin templates validate`.")
     return 0
 
 
@@ -1263,8 +1378,29 @@ def cmd_templates_approve_command(args: argparse.Namespace) -> int:
         params = parse_params(args.parameters)
         fetch.validate_parameters(stream, params)
         adapter = fetch.substitute(stream["adapter"], params)
+        adapter = fetch.resolve_secret_refs(args.root, adapter)
         if adapter.get("kind") != "local_command":
             raise ValueError(f"{stream['id']}: template is not a local_command template")
+        if not sys.stdin.isatty():
+            raise PermissionError("local_command approval must be run by the operator in an interactive terminal")
+        output = sys.stderr if args.json else sys.stdout
+        print("Local command approval required.", file=output)
+        print(f"Template: {stream['id']}", file=output)
+        print(f"Command: {json.dumps(adapter.get('command'))}", file=output)
+        print(f"CWD: {adapter.get('cwd') or os.getcwd()}", file=output)
+        if args.json:
+            print("Type APPROVE to approve this exact command: ", end="", file=sys.stderr)
+            typed = input()
+        else:
+            typed = input("Type APPROVE to approve this exact command: ")
+        if typed != "APPROVE":
+            raise PermissionError("approval cancelled")
+        stream_path = local_template_file(args.root, stream["id"])
+        if stream_path:
+            payload = yaml.safe_load(stream_path.read_text(encoding="utf-8")) or {}
+            payload["pending"] = False
+            stream_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+            stream = fetch.load_stream_definition(args.root, args.template_id)
         approval = fetch.write_local_command_approval(args.root, stream, adapter)
         path = fetch.local_command_approval_path(args.root, stream["id"])
     except Exception as exc:
@@ -1286,6 +1422,154 @@ def cmd_templates_approve_command(args: argparse.Namespace) -> int:
     print(f"Path: {result['approval_path']}")
     print(f"Digest: {result['digest']}")
     print(f"Command: {json.dumps(result['command'])}")
+    return 0
+
+
+def cmd_secrets_set(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    if not sys.stdin.isatty():
+        print("secret input must be run by the user in an interactive terminal", file=sys.stderr)
+        return 1
+    value = getpass.getpass(f"Secret value for {args.name}: ")
+    fetch.write_secret(args.root, args.name, value)
+    print(f"Secret set: {args.name}")
+    return 0
+
+
+def cmd_secrets_list(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    names = sorted(path.stem for path in (args.root / "secrets").glob("*.txt"))
+    if args.json:
+        print(json.dumps({"secrets": names}, indent=2, sort_keys=True))
+        return 0
+    for name in names:
+        print(name)
+    return 0
+
+
+MACOS_EVENT_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentfeeds.dev/schemas/macos.item.v1.json",
+    "title": "macOS Item",
+    "type": "object",
+    "required": ["title"],
+    "properties": {
+        "title": {"type": "string"},
+        "content": {"type": ["string", "null"]},
+        "source": {"type": ["string", "null"]},
+        "url": {"type": ["string", "null"]},
+        "starts_at": {"type": ["string", "null"]},
+        "ends_at": {"type": ["string", "null"]},
+        "updated_at": {"type": ["string", "null"]},
+        "sender": {"type": ["string", "null"]},
+    },
+}
+
+
+def _macos_stream(template_id: str, title: str, description: str, script_name: str, poll_seconds: int) -> dict:
+    script_path = fetch.repo_root() / "scripts" / "macos" / script_name
+    return {
+        "id": template_id,
+        "title": title,
+        "description": description,
+        "type": "macos.item",
+        "mode": "event",
+        "schema_url": "https://agentfeeds.dev/schemas/macos.item.v1.json",
+        "schema_version": "1.0.0",
+        "parameters": [],
+        "source_uri_template": f"feed://macos.{template_id.split('/', 1)[1]}/items",
+        "adapter": {
+            "kind": "local_command",
+            "command": [sys.executable, str(script_path)],
+            "timeout_seconds": 30,
+            "max_output_bytes": 1048576,
+            "parse": "json",
+            "items_from": "items",
+            "id_from": "id",
+            "time_from": "updated_at",
+            "transform": {
+                "language": "jmespath",
+                "expression": (
+                    "{title: title, content: content, source: source, url: url, starts_at: starts_at, "
+                    "ends_at: ends_at, updated_at: updated_at, sender: sender}"
+                ),
+            },
+        },
+        "recommended_poll_interval_seconds": poll_seconds,
+        "auth": "none",
+        "tags": ["macos", "local-command"],
+        "quality_tier": "experimental",
+        "contributed_by": "local",
+        "pending": True,
+    }
+
+
+def macos_native_templates() -> list[dict]:
+    return [
+        _macos_stream(
+            "macos/calendar-today",
+            "macOS Calendar today",
+            "Read-only events from the local macOS Calendar app for today.",
+            "calendar_today.py",
+            300,
+        ),
+        _macos_stream(
+            "macos/reminders-open",
+            "macOS open reminders",
+            "Read-only incomplete reminders from the local macOS Reminders app.",
+            "reminders_open.py",
+            600,
+        ),
+        _macos_stream(
+            "macos/mail-inbox-recent",
+            "macOS recent inbox mail",
+            "Read-only recent messages from the local macOS Mail inbox.",
+            "mail_inbox_recent.py",
+            300,
+        ),
+    ]
+
+
+def cmd_macos_install_templates(args: argparse.Namespace) -> int:
+    fetch.ensure_root(args.root)
+    schema_path = fetch.template_schemas_root(args.root) / "macos.item.v1.json"
+    if args.force or not schema_path.exists():
+        schema_path.parent.mkdir(parents=True, exist_ok=True)
+        schema_path.write_text(json.dumps(MACOS_EVENT_SCHEMA, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    written = []
+    skipped = []
+    for stream in macos_native_templates():
+        category, name = stream["id"].split("/", 1)
+        path = fetch.template_streams_root(args.root) / category / f"{name}.yaml"
+        if path.exists() and not args.force:
+            skipped.append(str(path))
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(stream, sort_keys=False), encoding="utf-8")
+        written.append(str(path))
+
+    result = {
+        "schema": str(schema_path),
+        "written": written,
+        "skipped": skipped,
+        "next_actions": [
+            {
+                "action": "approve_local_command",
+                "command": "python3 scripts/agentfeeds.py admin templates approve-command <template-id>",
+                "reason": "macOS templates are local_command templates and remain pending until the operator approves them",
+            }
+        ],
+    }
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    for path in written:
+        print(f"wrote: {path}")
+    for path in skipped:
+        print(f"skipped existing: {path}")
+    print("Next: run `python3 scripts/agentfeeds.py admin templates approve-command <template-id>` in a terminal for each template you want to enable.")
     return 0
 
 
@@ -1317,6 +1601,9 @@ def build_parser() -> argparse.ArgumentParser:
     subscribe.add_argument("--poll-interval-seconds", type=int)
     subscribe.add_argument("--history-limit", type=int)
     subscribe.add_argument("--no-fetch", action="store_true")
+    subscribe.add_argument("--dry-run", action="store_true", help="preview subscription id, state path, and requirements without writing")
+    subscribe.add_argument("--update", metavar="SUBSCRIPTION_ID", help="update an existing subscription in place")
+    subscribe.add_argument("--json", action="store_true", help="print machine-readable output")
     subscribe.set_defaults(func=cmd_subscribe)
 
     unsubscribe = subparsers.add_parser("unsubscribe", help="remove a subscription")
@@ -1325,34 +1612,22 @@ def build_parser() -> argparse.ArgumentParser:
     unsubscribe.set_defaults(func=cmd_unsubscribe)
 
     refresh = subparsers.add_parser("refresh", help="refresh subscriptions")
-    refresh.add_argument("subscription_id", nargs="?")
+    refresh.add_argument("--stream", dest="subscription_id", help="refresh one subscription id")
     refresh.add_argument("--all", action="store_true")
     refresh.set_defaults(func=cmd_refresh)
-
-    polling = subparsers.add_parser("polling", help="manage required background refresh")
-    polling_subparsers = polling.add_subparsers(dest="polling_command", required=True)
-    polling_status = polling_subparsers.add_parser("status", help="show background refresh status")
-    polling_status.add_argument("--json", action="store_true")
-    polling_status.set_defaults(func=cmd_polling_status)
-    polling_subparsers.add_parser("install", help="install or update background refresh").set_defaults(func=cmd_polling_install)
-    polling_subparsers.add_parser("uninstall", help="remove background refresh").set_defaults(func=cmd_polling_uninstall)
 
     streams = subparsers.add_parser("streams", help="inspect and read active streams")
     stream_subparsers = streams.add_subparsers(dest="stream_command", required=True)
     streams_list = stream_subparsers.add_parser("list", help="list active streams")
     streams_list.add_argument("--json", action="store_true")
     streams_list.set_defaults(func=cmd_streams_list)
-    streams_search = stream_subparsers.add_parser("search", help="search active streams")
-    streams_search.add_argument("query", nargs="*")
-    streams_search.add_argument("--json", action="store_true")
-    streams_search.set_defaults(func=cmd_streams_search)
+    streams_find = stream_subparsers.add_parser("find", help="find active streams by metadata")
+    streams_find.add_argument("query", nargs="*")
+    streams_find.add_argument("--json", action="store_true")
+    streams_find.set_defaults(func=cmd_streams_search)
     streams_health = stream_subparsers.add_parser("health", help="show stream freshness and fetch errors")
     streams_health.add_argument("--json", action="store_true")
     streams_health.set_defaults(func=cmd_streams_health)
-    streams_show = stream_subparsers.add_parser("show", help="show active stream metadata")
-    streams_show.add_argument("subscription_id")
-    streams_show.add_argument("--json", action="store_true")
-    streams_show.set_defaults(func=cmd_streams_show)
     streams_read = stream_subparsers.add_parser("read", help="read active stream data")
     streams_read.add_argument("subscription_id")
     streams_read.add_argument("--limit", type=int, default=20, help="limit event-list data rows")
@@ -1361,33 +1636,69 @@ def build_parser() -> argparse.ArgumentParser:
 
     templates = subparsers.add_parser("templates", help="browse and test feed templates")
     template_subparsers = templates.add_subparsers(dest="template_command", required=True)
-    template_search = template_subparsers.add_parser("search", help="search built-in and local templates")
+    template_search = template_subparsers.add_parser("find", help="find built-in and local templates")
     template_search.add_argument("query", nargs="*")
     template_search.add_argument("-v", "--verbose", action="store_true")
     template_search.set_defaults(func=cmd_templates_search)
-    template_subparsers.add_parser("list", help="list built-in and local templates").set_defaults(func=cmd_templates_list)
     template_show = template_subparsers.add_parser("show", help="show one template")
     template_show.add_argument("template_id")
     template_show.add_argument("--json", action="store_true")
     template_show.set_defaults(func=cmd_templates_show)
-    template_subparsers.add_parser("adapters", help="list scaffoldable adapter kinds").set_defaults(func=cmd_templates_adapters)
-    template_subparsers.add_parser("path", help="print the local template directory").set_defaults(func=cmd_templates_path)
-    scaffold = template_subparsers.add_parser("scaffold", help="create a draft local template")
-    scaffold.add_argument("adapter_kind", choices=sorted(ADAPTER_KINDS))
-    scaffold.add_argument("template_id", metavar="template_id")
-    scaffold.add_argument("--force", action="store_true", help="overwrite an existing draft")
-    scaffold.set_defaults(func=cmd_templates_scaffold)
-    template_test = template_subparsers.add_parser("test", help="run a template once without writing state")
-    template_test.add_argument("template_id", metavar="template_id")
-    template_test.add_argument("parameters", nargs="*", help="template parameters as key=value")
-    template_test.add_argument("--json", action="store_true", help="print machine-readable output")
-    template_test.set_defaults(func=cmd_templates_test)
-    approve_command = template_subparsers.add_parser("approve-command", help="approve one local_command template command digest")
-    approve_command.add_argument("template_id", metavar="template_id")
-    approve_command.add_argument("parameters", nargs="*", help="template parameters as key=value")
-    approve_command.add_argument("--json", action="store_true", help="print machine-readable output")
-    approve_command.set_defaults(func=cmd_templates_approve_command)
-    template_subparsers.add_parser("validate", help="validate local templates").set_defaults(func=cmd_templates_validate)
+
+    admin = subparsers.add_parser("admin", help="advanced setup, diagnostics, and template authoring")
+    admin_subparsers = admin.add_subparsers(dest="admin_command", required=True)
+    admin_polling = admin_subparsers.add_parser("polling", help="manage background refresh")
+    admin_polling_subparsers = admin_polling.add_subparsers(dest="polling_command", required=True)
+    admin_polling_status = admin_polling_subparsers.add_parser("status", help="show background refresh status")
+    admin_polling_status.add_argument("--json", action="store_true")
+    admin_polling_status.set_defaults(func=cmd_polling_status)
+    admin_polling_subparsers.add_parser("install", help="install or update background refresh").set_defaults(func=cmd_polling_install)
+    admin_polling_subparsers.add_parser("uninstall", help="remove background refresh").set_defaults(func=cmd_polling_uninstall)
+
+    admin_templates = admin_subparsers.add_parser("templates", help="template authoring tools")
+    admin_template_subparsers = admin_templates.add_subparsers(dest="template_command", required=True)
+    admin_template_subparsers.add_parser("adapters", help="list scaffoldable adapter kinds").set_defaults(func=cmd_templates_adapters)
+    admin_template_subparsers.add_parser("path", help="print the local template directory").set_defaults(func=cmd_templates_path)
+    admin_template_subparsers.add_parser("list", help="list built-in and local templates").set_defaults(func=cmd_templates_list)
+    admin_scaffold = admin_template_subparsers.add_parser("scaffold", help="create a draft local template")
+    admin_scaffold.add_argument("adapter_kind", choices=sorted(ADAPTER_KINDS))
+    admin_scaffold.add_argument("template_id", metavar="template_id")
+    admin_scaffold.add_argument("--force", action="store_true", help="overwrite an existing draft")
+    admin_scaffold.set_defaults(func=cmd_templates_scaffold)
+    admin_test = admin_template_subparsers.add_parser("test", help="run a template once without writing state")
+    admin_test.add_argument("template_id", metavar="template_id")
+    admin_test.add_argument("parameters", nargs="*", help="template parameters as key=value")
+    admin_test.add_argument("--json", action="store_true", help="print machine-readable output")
+    admin_test.set_defaults(func=cmd_templates_test)
+    admin_approve = admin_template_subparsers.add_parser("approve-command", help="operator-only approval for local_command templates")
+    admin_approve.add_argument("template_id", metavar="template_id")
+    admin_approve.add_argument("parameters", nargs="*", help="template parameters as key=value")
+    admin_approve.add_argument("--json", action="store_true", help="print machine-readable output")
+    admin_approve.set_defaults(func=cmd_templates_approve_command)
+    admin_template_subparsers.add_parser("validate", help="validate local templates").set_defaults(func=cmd_templates_validate)
+
+    admin_streams = admin_subparsers.add_parser("streams", help="advanced stream diagnostics")
+    admin_stream_subparsers = admin_streams.add_subparsers(dest="stream_command", required=True)
+    admin_stream_show = admin_stream_subparsers.add_parser("show", help="show active stream metadata")
+    admin_stream_show.add_argument("subscription_id")
+    admin_stream_show.add_argument("--json", action="store_true")
+    admin_stream_show.set_defaults(func=cmd_streams_show)
+
+    admin_secrets = admin_subparsers.add_parser("secrets", help="manage local secret values")
+    admin_secret_subparsers = admin_secrets.add_subparsers(dest="secret_command", required=True)
+    secret_set = admin_secret_subparsers.add_parser("set", help="set a local secret value")
+    secret_set.add_argument("name")
+    secret_set.set_defaults(func=cmd_secrets_set)
+    secret_list = admin_secret_subparsers.add_parser("list", help="list local secret names")
+    secret_list.add_argument("--json", action="store_true")
+    secret_list.set_defaults(func=cmd_secrets_list)
+
+    admin_macos = admin_subparsers.add_parser("macos", help="install macOS-native local templates")
+    admin_macos_subparsers = admin_macos.add_subparsers(dest="macos_command", required=True)
+    install_macos_templates = admin_macos_subparsers.add_parser("install-templates", help="install Calendar, Reminders, and Mail templates")
+    install_macos_templates.add_argument("--force", action="store_true", help="overwrite existing macOS local templates")
+    install_macos_templates.add_argument("--json", action="store_true")
+    install_macos_templates.set_defaults(func=cmd_macos_install_templates)
 
     return parser
 

@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -35,6 +36,10 @@ SPEC_VERSION = "0.3"
 DEFAULT_ROOT = Path.home() / ".agentfeeds"
 DEFAULT_CATALOG_BASE_URL = "https://raw.githubusercontent.com/verkyyi/agentfeeds-catalog/main"
 PARAMETER_PATTERN = re.compile(r"{([A-Za-z_][A-Za-z0-9_]*)}")
+SECRET_REF_PATTERN = re.compile(r"\{\{secret:([A-Za-z_][A-Za-z0-9_.-]*)\}\}")
+SENSITIVE_OUTPUT_PATTERN = re.compile(
+    r"(?i)(authorization|token|api[-_ ]?key|secret|cookie)([\"'\s:=]+)([^\"'\s,}]+)"
+)
 UNSAFE_NAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 LOCK_FILE_NAME = "agentfeeds-fetch.lock"
 
@@ -109,6 +114,13 @@ def load_fetch_status(root: Path, subscription_id: str) -> dict:
     return load_existing_state(status_path_for_subscription(root, subscription_id)) or {}
 
 
+def redact_sensitive_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = re.sub(r"(?i)(authorization[\"'\s:=]+)[^,\n}]+", r"\1[redacted]", value)
+    return SENSITIVE_OUTPUT_PATTERN.sub(lambda match: f"{match.group(1)}{match.group(2)}[redacted]", value)
+
+
 def write_fetch_status(
     root: Path,
     subscription: dict,
@@ -128,7 +140,7 @@ def write_fetch_status(
         "last_attempt_at": attempted_at,
         "last_success_at": attempted_at if succeeded else previous.get("last_success_at"),
         "last_error_at": None if succeeded else attempted_at,
-        "last_error": None if succeeded else error,
+        "last_error": None if succeeded else redact_sensitive_text(error),
         "consecutive_failures": 0 if succeeded else int(previous.get("consecutive_failures") or 0) + 1,
         "state_path": str(state_path.relative_to(root)) if state_path and root in state_path.parents else previous.get("state_path"),
     }
@@ -164,6 +176,7 @@ def fetch_lock(root: Path):
 def ensure_root(root: Path) -> None:
     (root / "approvals" / "local-command").mkdir(parents=True, exist_ok=True)
     (root / "catalog-cache").mkdir(parents=True, exist_ok=True)
+    (root / "secrets").mkdir(parents=True, exist_ok=True)
     (root / "state").mkdir(parents=True, exist_ok=True)
     (root / "templates" / "streams").mkdir(parents=True, exist_ok=True)
     (root / "templates" / "schemas" / "event-types").mkdir(parents=True, exist_ok=True)
@@ -473,6 +486,53 @@ def source_uri_for(stream: dict, parameters: dict) -> str:
     return substitute(stream["source_uri_template"], parameters)
 
 
+def secret_path(root: Path, name: str) -> Path:
+    safe = safe_name_part(name, "secret")
+    return root / "secrets" / f"{safe}.txt"
+
+
+def read_secret(root: Path, name: str) -> str:
+    if sys.platform == "darwin":
+        result = subprocess.run(
+            ["security", "find-generic-password", "-s", "agentfeeds", "-a", name, "-w"],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            return result.stdout.rstrip("\n")
+    path = secret_path(root, name)
+    if not path.exists():
+        raise KeyError(f"secret {name} not set; user can run `python3 scripts/agentfeeds.py admin secrets set {name}`")
+    return path.read_text(encoding="utf-8").rstrip("\n")
+
+
+def write_secret(root: Path, name: str, value: str) -> None:
+    if sys.platform == "darwin":
+        result = subprocess.run(
+            ["security", "add-generic-password", "-U", "-s", "agentfeeds", "-a", name, "-w", value],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            return
+    path = secret_path(root, name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value.rstrip("\n") + "\n", encoding="utf-8")
+    os.chmod(path, 0o600)
+
+
+def resolve_secret_refs(root: Path, value: object) -> object:
+    if isinstance(value, str):
+        return SECRET_REF_PATTERN.sub(lambda match: read_secret(root, match.group(1)), value)
+    if isinstance(value, list):
+        return [resolve_secret_refs(root, item) for item in value]
+    if isinstance(value, dict):
+        return {key: resolve_secret_refs(root, item) for key, item in value.items()}
+    return value
+
+
 def validate_parameters(stream: dict, parameters: dict) -> None:
     missing = [
         parameter["name"]
@@ -484,8 +544,9 @@ def validate_parameters(stream: dict, parameters: dict) -> None:
 
 
 def local_command_approval_digest(stream: dict, adapter: dict) -> str:
+    clean_stream = {key: value for key, value in stream.items() if not key.startswith("__") and key != "pending"}
     payload = {
-        "stream_id": stream["id"],
+        "stream": clean_stream,
         "command": adapter.get("command"),
         "cwd": adapter.get("cwd"),
     }
@@ -524,7 +585,7 @@ def require_local_command_approval(root: Path, stream: dict, adapter: dict) -> N
         rel_path = approval_path.relative_to(root)
         raise PermissionError(
             f"{stream['id']}: local_command is not approved for this command digest; "
-            f"review the command and run `python3 scripts/agentfeeds.py templates approve-command {stream['id']}` "
+            f"review the command and run `python3 scripts/agentfeeds.py admin templates approve-command {stream['id']}` "
             f"to write {rel_path}"
         )
 
@@ -536,12 +597,16 @@ def publisher_for(stream_uri: str) -> str:
 def run_adapter(stream: dict, parameters: dict, root: Path | None = None) -> tuple[str, list[dict]]:
     validate_parameters(stream, parameters)
     adapter = substitute(stream["adapter"], parameters)
+    adapter = resolve_secret_refs(root, adapter) if root is not None else adapter
     if adapter.get("kind") == "local_command":
         if root is None:
             raise PermissionError(f"{stream['id']}: local_command execution requires an Agent Feeds root for approval lookup")
+        if stream.get("pending"):
+            raise PermissionError(f"{stream['id']}: local_command template is pending operator approval")
         require_local_command_approval(root, stream, adapter)
+    resolved_stream = {**stream, "adapter": adapter}
     return run_adapter_impl(
-        stream,
+        resolved_stream,
         parameters,
         validate_parameters=validate_parameters,
         source_uri_for=source_uri_for,

@@ -52,14 +52,14 @@ def test_cli_subscribe_streams_and_unsubscribe_without_fetch(tmp_path, capsys):
 
 
 def test_cli_templates_search_filters_catalog(tmp_path, capsys):
-    assert cli.main(["--root", str(tmp_path), "templates", "search", "hacker"]) == 0
+    assert cli.main(["--root", str(tmp_path), "templates", "find", "hacker"]) == 0
     out = capsys.readouterr().out
     assert "dev/hackernews-frontpage" in out
     assert "weather/openmeteo-current" not in out
 
 
 def test_cli_templates_show_catalog_entry(tmp_path, capsys):
-    assert cli.main(["--root", str(tmp_path), "templates", "search", "hacker"]) == 0
+    assert cli.main(["--root", str(tmp_path), "templates", "find", "hacker"]) == 0
     out = capsys.readouterr().out
     assert "dev/hackernews-frontpage" in out
 
@@ -69,20 +69,7 @@ def test_cli_templates_show_catalog_entry(tmp_path, capsys):
     assert template["parameters"][0]["name"] == "path"
 
 
-def test_cli_materializes_parameterized_subscription(tmp_path, monkeypatch):
-    class Parsed:
-        feed = {"title": "Example News"}
-        entries = [{"link": "https://example.com/a"}, {"link": "https://example.com/b"}]
-
-    class FakeResponse:
-        content = b"<rss />"
-
-        def raise_for_status(self):
-            return None
-
-    monkeypatch.setattr(cli.requests, "get", lambda *_args, **_kwargs: FakeResponse())
-    monkeypatch.setattr(cli.feedparser, "parse", lambda *_args, **_kwargs: Parsed())
-
+def test_cli_materializes_parameterized_subscription_offline(tmp_path):
     assert cli.main([
         "--root",
         str(tmp_path),
@@ -95,8 +82,8 @@ def test_cli_materializes_parameterized_subscription(tmp_path, monkeypatch):
     config = yaml.safe_load((tmp_path / "subscriptions.yaml").read_text(encoding="utf-8"))
     assert config["subscriptions"] == [
         {
-            "id": "news/example-com",
-            "title": "Example News",
+            "id": "news/feeds-example-net",
+            "title": "Feeds RSS feed",
             "template": "news/rss-generic",
             "parameters": {"url": "https://feeds.example.net/rss.xml"},
         }
@@ -172,11 +159,11 @@ def test_cli_streams_list_search_show_and_read(tmp_path, capsys):
     listed = json.loads(capsys.readouterr().out)
     assert listed["streams"][0]["id"] == "local/project-notes-md"
 
-    assert cli.main(["--root", str(root), "streams", "search", "project", "--json"]) == 0
+    assert cli.main(["--root", str(root), "streams", "find", "project", "--json"]) == 0
     searched = json.loads(capsys.readouterr().out)
     assert searched["streams"][0]["id"] == "local/project-notes-md"
 
-    assert cli.main(["--root", str(root), "streams", "show", "local/project-notes-md", "--json"]) == 0
+    assert cli.main(["--root", str(root), "admin", "streams", "show", "local/project-notes-md", "--json"]) == 0
     shown = json.loads(capsys.readouterr().out)
     assert shown["template"] == "local/file"
     assert shown["exists"] is True
@@ -348,7 +335,7 @@ def test_cli_polling_status_reports_cron_block(tmp_path, capsys, monkeypatch):
         ),
     )
 
-    assert cli.main(["--root", str(tmp_path), "polling", "status", "--json"]) == 0
+    assert cli.main(["--root", str(tmp_path), "admin", "polling", "status", "--json"]) == 0
     status = json.loads(capsys.readouterr().out)
     assert status["installed"] is True
     assert status["method"] == "cron"
@@ -356,18 +343,18 @@ def test_cli_polling_status_reports_cron_block(tmp_path, capsys, monkeypatch):
 
 
 def test_cli_template_helpers(tmp_path, capsys):
-    assert cli.main(["--root", str(tmp_path), "templates", "path"]) == 0
+    assert cli.main(["--root", str(tmp_path), "admin", "templates", "path"]) == 0
     assert capsys.readouterr().out.strip() == str(tmp_path / "templates")
 
-    assert cli.main(["--root", str(tmp_path), "templates", "validate"]) == 0
+    assert cli.main(["--root", str(tmp_path), "admin", "templates", "validate"]) == 0
     assert "No local templates found" in capsys.readouterr().out
 
-    assert cli.main(["--root", str(tmp_path), "templates", "list"]) == 0
+    assert cli.main(["--root", str(tmp_path), "admin", "templates", "list"]) == 0
     out = capsys.readouterr().out
     assert "local/file: Local file" in out
     assert "source: builtin" in out
 
-    assert cli.main(["--root", str(tmp_path), "templates", "adapters"]) == 0
+    assert cli.main(["--root", str(tmp_path), "admin", "templates", "adapters"]) == 0
     out = capsys.readouterr().out
     assert "local_file:" in out
     assert "local_command:" in out
@@ -378,6 +365,7 @@ def test_cli_scaffolds_local_template(tmp_path, capsys):
     assert cli.main([
         "--root",
         str(tmp_path),
+        "admin",
         "templates",
         "scaffold",
         "json_http",
@@ -394,13 +382,14 @@ def test_cli_scaffolds_local_template(tmp_path, capsys):
     assert stream["parameters"][0]["name"] == "url"
     assert schema["$id"] == "https://agentfeeds.dev/schemas/personal.tasks.v1.json"
     assert "wrote:" in capsys.readouterr().out
-    assert cli.main(["--root", str(tmp_path), "templates", "validate"]) == 0
+    assert cli.main(["--root", str(tmp_path), "admin", "templates", "validate"]) == 0
 
 
 def test_cli_scaffold_reuses_builtin_schema_for_rss(tmp_path):
     assert cli.main([
         "--root",
         str(tmp_path),
+        "admin",
         "templates",
         "scaffold",
         "rss",
@@ -419,6 +408,7 @@ def test_cli_scaffold_reuses_builtin_schema_for_local_command(tmp_path):
     assert cli.main([
         "--root",
         str(tmp_path),
+        "admin",
         "templates",
         "scaffold",
         "local_command",
@@ -435,8 +425,9 @@ def test_cli_scaffold_reuses_builtin_schema_for_local_command(tmp_path):
     assert stream["adapter"]["kind"] == "local_command"
     assert stream["adapter"]["parse"] == "json"
     assert stream["adapter"]["transform"]["language"] == "jmespath"
+    assert stream["pending"] is True
     assert not (tmp_path / "templates" / "schemas" / "event-types" / "personal.command.v1.json").exists()
-    assert cli.main(["--root", str(tmp_path), "templates", "validate"]) == 0
+    assert cli.main(["--root", str(tmp_path), "admin", "templates", "validate"]) == 0
 
 
 def test_cli_template_test_runs_template_without_writing_state(tmp_path, capsys):
@@ -446,6 +437,7 @@ def test_cli_template_test_runs_template_without_writing_state(tmp_path, capsys)
     assert cli.main([
         "--root",
         str(tmp_path / "agentfeeds"),
+        "admin",
         "templates",
         "test",
         "local/file",
@@ -462,7 +454,7 @@ def test_cli_template_test_runs_template_without_writing_state(tmp_path, capsys)
     assert not (tmp_path / "agentfeeds" / "state" / "local.file").exists()
 
 
-def test_cli_template_test_supports_event_command_without_items_from(tmp_path, capsys):
+def test_cli_template_test_supports_event_command_without_items_from(tmp_path, capsys, monkeypatch):
     streams_root = tmp_path / "templates" / "streams" / "personal"
     schemas_root = tmp_path / "templates" / "schemas" / "event-types"
     streams_root.mkdir(parents=True)
@@ -518,6 +510,20 @@ def test_cli_template_test_supports_event_command_without_items_from(tmp_path, c
     assert cli.main([
         "--root",
         str(tmp_path),
+        "admin",
+        "templates",
+        "approve-command",
+        "personal/items",
+        "--json",
+    ]) == 1
+    assert "interactive terminal" in capsys.readouterr().err
+
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda *_args: "APPROVE")
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "admin",
         "templates",
         "approve-command",
         "personal/items",
@@ -529,6 +535,7 @@ def test_cli_template_test_supports_event_command_without_items_from(tmp_path, c
     assert cli.main([
         "--root",
         str(tmp_path),
+        "admin",
         "templates",
         "test",
         "personal/items",
@@ -569,3 +576,134 @@ def test_cli_materializes_github_issue_and_pr_subscriptions(tmp_path):
     assert config["subscriptions"][0]["title"] == "NousResearch/hermes-agent issues"
     assert config["subscriptions"][1]["id"] == "dev/nousresearch-hermes-agent-prs"
     assert config["subscriptions"][1]["title"] == "NousResearch/hermes-agent prs"
+
+
+def test_cli_subscribe_dry_run_does_not_write_subscription(tmp_path, capsys):
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "subscribe",
+        "calendar/ics",
+        "url=https://example.com/calendar.ics",
+        "--dry-run",
+        "--json",
+    ]) == 0
+
+    result = json.loads(capsys.readouterr().out)
+    assert result["subscription"]["id"] == "calendar/example-com"
+    assert result["stream"] == "feed://calendar.local/ics?url=https://example.com/calendar.ics"
+    assert result["state_path"].startswith("state/calendar.local/ics.url-https-example.com-calendar.ics.")
+    config = yaml.safe_load((tmp_path / "subscriptions.yaml").read_text(encoding="utf-8"))
+    assert config["subscriptions"] == []
+
+
+def test_cli_subscribe_update_keeps_subscription_id(tmp_path):
+    first = tmp_path / "first.md"
+    second = tmp_path / "second.md"
+    first.write_text("one", encoding="utf-8")
+    second.write_text("two", encoding="utf-8")
+
+    assert cli.main(["--root", str(tmp_path), "subscribe", "local/file", f"path={first}", "--no-fetch"]) == 0
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "subscribe",
+        "local/file",
+        f"path={second}",
+        "--update",
+        "local/first-md",
+        "--no-fetch",
+    ]) == 0
+
+    config = yaml.safe_load((tmp_path / "subscriptions.yaml").read_text(encoding="utf-8"))
+    assert config["subscriptions"] == [
+        {
+            "id": "local/first-md",
+            "title": "first.md",
+            "template": "local/file",
+            "parameters": {"path": str(second)},
+        }
+    ]
+
+
+def test_cli_installs_macos_native_templates(tmp_path, capsys):
+    assert cli.main(["--root", str(tmp_path), "admin", "macos", "install-templates", "--json"]) == 0
+
+    result = json.loads(capsys.readouterr().out)
+    assert len(result["written"]) == 3
+    assert result["next_actions"][0]["action"] == "approve_local_command"
+
+    assert cli.main(["--root", str(tmp_path), "admin", "templates", "validate"]) == 0
+    capsys.readouterr()
+    for template_id in ["macos/calendar-today", "macos/reminders-open", "macos/mail-inbox-recent"]:
+        stream = cli.fetch.load_stream_definition(tmp_path, template_id)
+        assert stream["pending"] is True
+        assert stream["adapter"]["kind"] == "local_command"
+        assert stream["adapter"]["command"][1].endswith(".py")
+
+    assert cli.main([
+        "--root",
+        str(tmp_path),
+        "subscribe",
+        "macos/calendar-today",
+        "--dry-run",
+        "--json",
+    ]) == 0
+    preview = json.loads(capsys.readouterr().out)
+    assert preview["next_actions"][0]["action"] == "approve_local_command"
+
+    assert cli.main(["--root", str(tmp_path), "subscribe", "macos/calendar-today", "--json"]) == 2
+    blocked = json.loads(capsys.readouterr().out)
+    assert blocked["error"] == "local_command template is pending operator approval"
+
+
+def test_cli_subscribe_reports_secret_next_action(tmp_path, capsys):
+    streams_root = tmp_path / "templates" / "streams" / "dev"
+    schemas_root = tmp_path / "templates" / "schemas" / "event-types"
+    streams_root.mkdir(parents=True)
+    schemas_root.mkdir(parents=True)
+    (schemas_root / "dev.private.v1.json").write_text(
+        json.dumps(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$id": "https://agentfeeds.dev/schemas/dev.private.v1.json",
+                "title": "Private API",
+                "type": "object",
+                "properties": {"title": {"type": "string"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (streams_root / "private.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "dev/private",
+                "title": "Private API",
+                "description": "Private JSON API",
+                "type": "dev.private",
+                "mode": "snapshot",
+                "schema_url": "https://agentfeeds.dev/schemas/dev.private.v1.json",
+                "schema_version": "1.0.0",
+                "parameters": [],
+                "source_uri_template": "feed://dev.private/api",
+                "adapter": {
+                    "kind": "json_http",
+                    "url": "https://api.example.test/private",
+                    "method": "GET",
+                    "headers": {"Authorization": "Bearer {{secret:github_token}}"},
+                    "transform": {"language": "jmespath", "expression": "{title: title}"},
+                },
+                "recommended_poll_interval_seconds": 300,
+                "auth": "none",
+                "tags": ["dev"],
+                "quality_tier": "experimental",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    assert cli.main(["--root", str(tmp_path), "subscribe", "dev/private", "--dry-run", "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["requires_secrets"] == ["github_token"]
+    assert result["next_actions"][0]["action"] == "set_secret"

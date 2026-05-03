@@ -21,12 +21,14 @@ python3 scripts/agentfeeds.py brief
 python3 scripts/agentfeeds.py search <topic> --json
 python3 scripts/agentfeeds.py streams health --json
 python3 scripts/agentfeeds.py streams read <subscription-id> --limit 20 --json
-python3 scripts/agentfeeds.py templates search <query>
+python3 scripts/agentfeeds.py streams find <query> --json
+python3 scripts/agentfeeds.py templates find <query>
+python3 scripts/agentfeeds.py subscribe <template-id> [key=value ...] --dry-run --json
 python3 scripts/agentfeeds.py subscribe <template-id> [key=value ...]
-python3 scripts/agentfeeds_fetch.py --stream <subscription-id>
+python3 scripts/agentfeeds.py refresh --stream <subscription-id>
 ```
 
-`python3 scripts/agentfeeds.py` is the management CLI. `python3 scripts/agentfeeds_fetch.py` is the refresh worker. Runtime state defaults to `~/.agentfeeds/`; treat the file layout as an implementation detail except when debugging or editing a scaffolded local template.
+`python3 scripts/agentfeeds.py` is the agent-facing CLI. `python3 scripts/agentfeeds_fetch.py` is an internal refresh worker used by polling and wrappers; prefer `agentfeeds.py refresh` in agent instructions. Runtime state defaults to `~/.agentfeeds/`; treat the file layout as an implementation detail except when debugging or editing a scaffolded local template.
 
 Vocabulary:
 
@@ -39,6 +41,7 @@ References to load only when needed:
 - Runtime setup details: `references/runtime-setup.md`
 - Template authoring details: `references/template-authoring.md`
 - Background refresh details: `references/background-refresh.md`
+- macOS personal source setup: `references/macos-personal-sources.md`
 
 Built-in templates come from the standalone catalog repo `https://github.com/verkyyi/agentfeeds-catalog` and are cached locally; user-local templates live under `~/.agentfeeds/templates/`.
 The release bundle includes a frozen built-in catalog fallback so first-run discovery does not depend on GitHub being reachable.
@@ -48,7 +51,7 @@ The release bundle includes a frozen built-in catalog fallback so first-run disc
 At the start of each session:
 
 1. If the bundled CLI fails because dependencies are missing, run `python3 scripts/setup.py`.
-2. Check background refresh with `python3 scripts/agentfeeds.py polling status --json`; if missing, run `python3 scripts/agentfeeds.py polling install`.
+2. Check background refresh with `python3 scripts/agentfeeds.py admin polling status --json`; if missing, run `python3 scripts/agentfeeds.py admin polling install`.
 3. Check stream health with `python3 scripts/agentfeeds.py streams health --json`.
 4. Generate stable compact context with `python3 scripts/agentfeeds.py brief`.
 5. If the host supports prompt slots, place the exact brief output in a system-level or persistent context slot so stable stream metadata can benefit from model-side prompt caching.
@@ -63,21 +66,23 @@ When a user prompt may be covered by subscribed changing context:
 
 1. Search local state first: `python3 scripts/agentfeeds.py search <topic> --json`.
 2. If matches are non-stale and answer the prompt, read the matching stream with `python3 scripts/agentfeeds.py streams read <subscription-id> --limit 20 --json` and answer from local state.
-3. If a matching stream is stale and freshness matters, refresh it with `python3 scripts/agentfeeds_fetch.py --stream <subscription-id>`, then search/read again.
+3. Refresh on demand only when the user asks about current/time-bounded data, the stream is older than 2x its poll interval, or the user explicitly asks to refresh. Use `python3 scripts/agentfeeds.py refresh --stream <subscription-id>`, then search/read again.
 4. If health shows a fetch error or missing state, explain the degraded source and ask for reconfiguration only when needed.
 5. Use web search or source-specific external tools only when local streams do not cover the prompt, are stale and cannot refresh, or the user explicitly asks for outside/current web information beyond subscribed data.
 
-Use `streams search` only for stream metadata discovery. Use top-level `search` for content snippets.
+Use `streams find` only for stream metadata discovery. Use top-level `search` for content snippets.
 
 ## Subscribe And Manage
 
 When the user asks to subscribe to a source:
 
-1. Search built-ins first with `python3 scripts/agentfeeds.py templates search <query>`.
+1. Search built-ins first with `python3 scripts/agentfeeds.py templates find <query>`.
 2. Inspect likely matches with `python3 scripts/agentfeeds.py templates show <template-id> --json`.
 3. Prefer a built-in template when it fits the source shape and auth model.
-4. Collect only required parameters, then subscribe with `python3 scripts/agentfeeds.py subscribe <template-id> [key=value ...]`.
+4. Collect only required parameters, preview with `python3 scripts/agentfeeds.py subscribe <template-id> [key=value ...] --dry-run --json`, then subscribe with `python3 scripts/agentfeeds.py subscribe <template-id> [key=value ...]`.
 5. Confirm with `python3 scripts/agentfeeds.py streams health --json` and, if useful, one stream read.
+
+Default to answering first. Subscribe only when the user explicitly asks to subscribe, asks about a recurring topic, or a follow-up would clearly benefit from warm local state. If the user names a category rather than a source, list candidate templates and ask which source they mean.
 
 For unsubscribe:
 
@@ -102,20 +107,30 @@ Balance built-in templates and local authoring this way:
 When no built-in template fits:
 
 ```bash
-python3 scripts/agentfeeds.py templates adapters
-python3 scripts/agentfeeds.py templates scaffold <adapter-kind> <template-id>
-python3 scripts/agentfeeds.py templates validate
-python3 scripts/agentfeeds.py templates test <template-id> key=value
+python3 scripts/agentfeeds.py admin templates adapters
+python3 scripts/agentfeeds.py admin templates scaffold <adapter-kind> <template-id>
+python3 scripts/agentfeeds.py admin templates validate
+python3 scripts/agentfeeds.py admin templates test <template-id> key=value
 ```
 
 Read `references/template-authoring.md` before editing scaffolded template YAML.
 
-For `local_command` templates, use argv arrays only. Only create command templates for explicitly requested or approved read-only commands. Avoid commands that mutate files, cloud resources, accounts, or external services. Before testing, subscribing, or refreshing a `local_command` template, show the exact command to the user and run `python3 scripts/agentfeeds.py templates approve-command <template-id> [key=value ...]` only after they approve it.
+For `local_command` templates, use argv arrays only. Only create command templates for explicitly requested or approved read-only commands. Avoid commands that mutate files, cloud resources, accounts, or external services. New `local_command` templates are pending and cannot run until approved by the operator.
+
+After scaffolding or installing a `local_command` template, tell the user to run `python3 scripts/agentfeeds.py admin templates approve-command <template-id> [key=value ...]` themselves in an interactive terminal. Do not approve on the user's behalf, even if asked. Explain that approval is tied to the exact template and command digest, and edits revoke it.
+
+For macOS personal context, install local templates with:
+
+```bash
+python3 scripts/agentfeeds.py admin macos install-templates
+```
+
+This installs pending read-only templates for Calendar, Reminders, and Mail. The operator must approve each one before subscribing or refreshing.
 
 ## Safety Rules
 
 - Use `subscribe` and `unsubscribe` for subscription changes.
-- Use `agentfeeds_fetch.py` or `agentfeeds.py refresh` for refreshes.
+- Use `agentfeeds.py refresh` for refreshes.
 - Do not hand-write state or status files.
-- Do not include secrets in template YAML.
+- Do not include secret values in template YAML. Use `{{secret:name}}` references and tell the user to set values with `python3 scripts/agentfeeds.py admin secrets set <name>`.
 - Treat Agent Feeds as warm changing context, not durable memory, semantic search, or a data warehouse.

@@ -33,8 +33,8 @@ For portable skill usage, prefer the bundled scripts.
 After setup, verify or install background refresh:
 
 ```bash
-python3 scripts/agentfeeds.py polling status --json
-python3 scripts/agentfeeds.py polling install
+python3 scripts/agentfeeds.py admin polling status --json
+python3 scripts/agentfeeds.py admin polling install
 python3 scripts/agentfeeds.py streams health --json
 ```
 

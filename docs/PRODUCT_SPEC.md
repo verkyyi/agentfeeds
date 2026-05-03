@@ -119,7 +119,7 @@ Agents should read it through `python3 scripts/agentfeeds.py streams read <subsc
 
 ### Active Stream Map
 
-`python3 scripts/agentfeeds.py streams list` and `python3 scripts/agentfeeds.py streams search` provide the compact active-stream map. The agent uses that map to locate relevant subscribed context without loading all data into the prompt.
+`python3 scripts/agentfeeds.py streams list` and `python3 scripts/agentfeeds.py streams find` provide the compact active-stream map. The agent uses that map to locate relevant subscribed context without loading all data into the prompt.
 
 `python3 scripts/agentfeeds.py brief` provides the stable session-start prompt surface. By default it avoids timestamps and volatile freshness fields so repeated sessions can benefit from model-side prompt caching.
 
@@ -263,10 +263,10 @@ Can Agent Feeds subscribe to my SQLite task database? If not, draft a template.
 The CLI exists for inspection, debugging, and agent orchestration:
 
 ```bash
-python3 scripts/agentfeeds.py templates search local
+python3 scripts/agentfeeds.py templates find local
 python3 scripts/agentfeeds.py subscribe local/file path=~/notes/project.md --title "Project notes"
 python3 scripts/agentfeeds.py streams list
-python3 scripts/agentfeeds.py templates test personal/tasks --json
+python3 scripts/agentfeeds.py admin templates test personal/tasks --json
 ```
 
 Users should not need to memorize these commands for normal operation.

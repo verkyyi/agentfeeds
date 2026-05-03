@@ -5,20 +5,20 @@ Background refresh is required for normal Agent Feeds use. It keeps subscription
 Check scheduler status:
 
 ```bash
-python3 scripts/agentfeeds.py polling status --json
+python3 scripts/agentfeeds.py admin polling status --json
 python3 scripts/agentfeeds.py streams health --json
 ```
 
 Install or update background polling:
 
 ```bash
-python3 scripts/agentfeeds.py polling install
+python3 scripts/agentfeeds.py admin polling install
 ```
 
 Uninstall polling only when the user no longer wants ambient refresh:
 
 ```bash
-python3 scripts/agentfeeds.py polling uninstall
+python3 scripts/agentfeeds.py admin polling uninstall
 ```
 
 On macOS, polling uses launchd. On Linux, FreeBSD, and WSL-style POSIX environments, polling uses a tagged crontab block. Native Windows polling is not currently supported. The runtime computes the shortest configured subscription interval and floors it at 5 minutes.
@@ -30,6 +30,6 @@ Use stream health to distinguish scheduler setup from per-stream fetch problems.
 Explicit refresh remains useful for immediate freshness:
 
 ```bash
-python3 scripts/agentfeeds_fetch.py --stream <subscription-id>
-python3 scripts/agentfeeds_fetch.py --all
+python3 scripts/agentfeeds.py refresh --stream <subscription-id>
+python3 scripts/agentfeeds.py refresh --all
 ```

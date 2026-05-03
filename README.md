@@ -6,6 +6,47 @@ The primary audience for this repository is agent operators who want to install,
 
 **Agents need feeds, not just memory.** Memory is for durable facts. Feeds are for fresh, incoming, timestamped state: project notes, RSS/news, GitHub issues and releases, calendars, weather, local dashboards, personal sources, or operator-approved command output.
 
+## Mac Personal Agent Quick Start
+
+For a Mac operator running a local personal agent such as Hermes or OpenClaw, the first useful setup is:
+
+```bash
+python3 scripts/setup.py
+python3 scripts/agentfeeds.py admin polling install
+python3 scripts/agentfeeds.py admin macos install-templates
+```
+
+Approve only the local app sources you want the agent to read:
+
+```bash
+python3 scripts/agentfeeds.py admin templates approve-command macos/calendar-today
+python3 scripts/agentfeeds.py admin templates approve-command macos/reminders-open
+python3 scripts/agentfeeds.py admin templates approve-command macos/mail-inbox-recent
+```
+
+Subscribe the approved sources:
+
+```bash
+python3 scripts/agentfeeds.py subscribe macos/calendar-today --title "Calendar today"
+python3 scripts/agentfeeds.py subscribe macos/reminders-open --title "Open reminders"
+python3 scripts/agentfeeds.py subscribe macos/mail-inbox-recent --title "Recent inbox mail"
+python3 scripts/agentfeeds.py streams health
+```
+
+macOS may ask for Automation or app-data permissions the first time the streams refresh. After that, background polling keeps the local state warm so your agent can answer questions like:
+
+```text
+What is on my calendar today?
+```
+
+```text
+What reminders are still open?
+```
+
+```text
+Anything recent in my inbox I should notice?
+```
+
 ## Quick Demo
 
 ![Agent Feeds interactive session demo](assets/agentfeeds-demo.gif)
@@ -74,8 +115,8 @@ python3 scripts/agentfeeds_fetch.py --help
 Background refresh is required for normal ambient use:
 
 ```bash
-python3 scripts/agentfeeds.py polling status
-python3 scripts/agentfeeds.py polling install
+python3 scripts/agentfeeds.py admin polling status
+python3 scripts/agentfeeds.py admin polling install
 python3 scripts/agentfeeds.py streams health
 ```
 
@@ -91,13 +132,14 @@ The default brief is intentionally compact and stable for prompt caching. It lis
 
 Agent Feeds gives the agent a small local control surface:
 
-- `python3 scripts/agentfeeds.py templates ...` discovers reusable feed definitions
+- `python3 scripts/agentfeeds.py templates find/show ...` discovers reusable feed definitions
 - `python3 scripts/agentfeeds.py subscribe ...` creates active subscriptions
-- `python3 scripts/agentfeeds.py streams ...` lists, searches, shows, and reads refreshed data
+- `python3 scripts/agentfeeds.py streams ...` lists, finds, and reads refreshed data
 - `python3 scripts/agentfeeds.py search ...` searches refreshed local state and returns matching snippets
 - `python3 scripts/agentfeeds.py streams health ...` reports missing, stale, and failing streams
-- `python3 scripts/agentfeeds_fetch.py ...` updates the catalog and refreshes subscriptions
-- `python3 scripts/agentfeeds.py polling ...` keeps subscriptions warm in the background
+- `python3 scripts/agentfeeds.py refresh ...` refreshes subscriptions
+- `python3 scripts/agentfeeds.py admin polling ...` keeps subscriptions warm in the background
+- `python3 scripts/agentfeeds.py admin macos install-templates` installs pending local templates for Calendar, Reminders, and Mail
 - `python3 scripts/agentfeeds.py brief` emits compact stable context for session-start prompt insertion
 
 Runtime state lives under `~/.agentfeeds/`, but agents should normally use the CLI instead of reading or writing storage files directly. The file layout remains inspectable for debugging and local template authoring.
@@ -140,7 +182,7 @@ The skill instructs the agent to:
 - read compact stream data only when relevant
 - draft and test local templates when no built-in template fits
 
-For `local_command` templates, the agent should only create commands you explicitly approve. Command templates run without a shell, with timeout and output limits, and they will not execute until the exact command digest has been approved with `templates approve-command`.
+For `local_command` templates, the agent should only create commands you explicitly approve. Command templates run without a shell, with timeout and output limits, and they will not execute until you approve the exact template and command digest with `admin templates approve-command` in an interactive terminal.
 
 ## Built-In Templates
 
@@ -167,6 +209,18 @@ Current built-in templates include:
 - `geo/usgs-earthquakes-hour`: recent USGS earthquakes
 - `space/iss-location`: current ISS location
 
+macOS-local personal templates are installed separately because they use operator-approved local commands and app permissions:
+
+```bash
+python3 scripts/agentfeeds.py admin macos install-templates
+```
+
+This writes pending templates for Calendar, Reminders, and Mail. Approve only the templates you want enabled with:
+
+```bash
+python3 scripts/agentfeeds.py admin templates approve-command <template-id>
+```
+
 Catalog loading can be pointed at a local checkout or alternate raw source:
 
 ```bash
@@ -179,20 +233,20 @@ AGENTFEEDS_CATALOG_BASE_URL=https://raw.githubusercontent.com/verkyyi/agentfeeds
 Install background polling so subscriptions stay warm without waiting for the agent to refresh them during a conversation:
 
 ```bash
-python3 scripts/agentfeeds.py polling install
+python3 scripts/agentfeeds.py admin polling install
 ```
 
 Check it with:
 
 ```bash
-python3 scripts/agentfeeds.py polling status
+python3 scripts/agentfeeds.py admin polling status
 python3 scripts/agentfeeds.py streams health
 ```
 
 Uninstall it only when you no longer want ambient refresh:
 
 ```bash
-python3 scripts/agentfeeds.py polling uninstall
+python3 scripts/agentfeeds.py admin polling uninstall
 ```
 
 On macOS this installs a LaunchAgent at `~/Library/LaunchAgents/dev.agentfeeds.fetch.plist`. On Linux it installs a tagged crontab block. The interval is the shortest configured subscription interval, floored at 5 minutes.

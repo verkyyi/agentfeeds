@@ -219,6 +219,23 @@ def test_fetch_failure_writes_status(tmp_path, capsys):
     assert status["consecutive_failures"] == 1
 
 
+def test_fetch_status_redacts_sensitive_error_text(tmp_path):
+    fetcher.ensure_root(tmp_path)
+    fetcher.write_fetch_status(
+        tmp_path,
+        {"id": "dev/private", "template": "dev/private"},
+        None,
+        attempted_at="2026-05-03T12:00:00Z",
+        succeeded=False,
+        error="Authorization: Bearer abc123 token=xyz cookie=session",
+    )
+
+    status = fetcher.load_fetch_status(tmp_path, "dev/private")
+    assert "abc123" not in status["last_error"]
+    assert "xyz" not in status["last_error"]
+    assert "[redacted]" in status["last_error"]
+
+
 def _approve_local_command(root: Path, stream: dict, parameters: dict | None = None) -> None:
     adapter = fetcher.substitute(stream["adapter"], parameters or {})
     fetcher.write_local_command_approval(root, stream, adapter)
@@ -248,6 +265,32 @@ def test_local_command_fetch_requires_approval(tmp_path):
         raise AssertionError("expected approval failure")
 
 
+def test_local_command_fetch_refuses_pending_template(tmp_path):
+    stream = {
+        "id": "personal/command",
+        "title": "Command",
+        "description": "Command snapshot",
+        "type": "local.command",
+        "mode": "snapshot",
+        "schema_url": "https://agentfeeds.dev/schemas/local.command.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://personal.command/command",
+        "pending": True,
+        "adapter": {
+            "kind": "local_command",
+            "command": [sys.executable, "-c", "print('hello from command')"],
+        },
+    }
+
+    _approve_local_command(tmp_path, stream)
+    try:
+        fetcher.run_adapter(stream, {}, tmp_path)
+    except PermissionError as exc:
+        assert "pending operator approval" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected pending-template failure")
+
+
 def test_local_command_fetch_writes_stdout_snapshot(tmp_path):
     stream = {
         "id": "personal/command",
@@ -274,6 +317,48 @@ def test_local_command_fetch_writes_stdout_snapshot(tmp_path):
     assert events[0]["data"]["stderr"] == ""
     assert events[0]["data"]["parsed_json"] is None
     assert events[0]["data"]["transformed"] is None
+
+
+def test_secret_refs_resolve_before_http_adapter_runs(tmp_path, monkeypatch):
+    fetcher.ensure_root(tmp_path)
+    fetcher.write_secret(tmp_path, "api_token", "secret-value")
+    stream = {
+        "id": "dev/private",
+        "title": "Private API",
+        "description": "Private API",
+        "type": "dev.private",
+        "mode": "snapshot",
+        "schema_url": "https://agentfeeds.dev/schemas/dev.private.v1.json",
+        "schema_version": "1.0.0",
+        "parameters": [],
+        "source_uri_template": "feed://dev.private/api",
+        "adapter": {
+            "kind": "json_http",
+            "url": "https://api.example.test/private",
+            "method": "GET",
+            "headers": {"Authorization": "Bearer {{secret:api_token}}"},
+            "transform": {"language": "jmespath", "expression": "{title: title}"},
+        },
+    }
+    seen = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"title": "Private"}
+
+    def fake_request(_method, _url, **kwargs):
+        seen["headers"] = kwargs.get("headers")
+        return FakeResponse()
+
+    monkeypatch.setattr(http_adapter.requests, "request", fake_request)
+
+    _stream_uri, events = fetcher.run_adapter(stream, {}, tmp_path)
+
+    assert seen["headers"]["Authorization"] == "Bearer secret-value"
+    assert events[0]["data"] == {"title": "Private"}
 
 
 def test_local_command_fetch_can_parse_json_and_transform(tmp_path):

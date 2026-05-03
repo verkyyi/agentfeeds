@@ -6,7 +6,7 @@
       "prompt": "Start this session with Agent Feeds set up correctly. I want you to make the ambient context available to the model in the right prompt slot if possible, but don't dump raw state files into the conversation.",
       "expected_output": "The agent checks whether the bundled CLI works, installs/checks background polling, checks stream health, generates the stable brief, and explains that the brief should go in a system-level or persistent prompt slot when the host supports it. It does not read raw ~/.agentfeeds state files or include volatile full stream data in the prompt.",
       "assertions": [
-        "The agent runs or proposes `python3 scripts/agentfeeds.py polling status --json` before assuming background refresh is installed.",
+        "The agent runs or proposes `python3 scripts/agentfeeds.py admin polling status --json` before assuming background refresh is installed.",
         "The agent runs or proposes `python3 scripts/agentfeeds.py streams health --json` to detect missing, stale, or failing streams.",
         "The agent runs or proposes `python3 scripts/agentfeeds.py brief` for compact session-start context.",
         "The answer says the brief belongs in a system-level or persistent prompt/context slot when available.",
@@ -21,7 +21,7 @@
         "evals/files/project-notes.md"
       ],
       "assertions": [
-        "The agent uses `python3 scripts/agentfeeds.py search <topic> --json` rather than only `streams search` for content lookup.",
+        "The agent uses `python3 scripts/agentfeeds.py search <topic> --json` rather than only stream metadata lookup for content lookup.",
         "If a match is found, the agent reads the matching subscription with `python3 scripts/agentfeeds.py streams read <subscription-id> --limit 20 --json` before answering.",
         "The answer avoids web search when non-stale local Agent Feeds state covers the question.",
         "The answer distinguishes local Agent Feeds state from durable memory.",
@@ -48,11 +48,11 @@
       "prompt": "Can Agent Feeds subscribe to my private SQLite task database? If there isn't already a suitable source, draft the safest local approach but don't run any mutating commands.",
       "expected_output": "The agent searches existing templates first. If no built-in fits SQLite directly, it explains that a local read-only command template is appropriate, asks for or proposes an operator-approved argv-only read command, scaffolds/tests a local template only after that decision, and avoids mutating commands or secrets in YAML.",
       "assertions": [
-        "The agent starts with `python3 scripts/agentfeeds.py templates search <query>` instead of immediately writing a template.",
+        "The agent starts with `python3 scripts/agentfeeds.py templates find <query>` instead of immediately writing a template.",
         "The agent chooses local template authoring only after explaining that no built-in template fits the SQLite source.",
         "The proposed command template uses an argv array and is explicitly read-only.",
         "The agent avoids shell strings, mutating commands, cloud/account changes, and secrets in template YAML.",
-        "The agent validates and tests the template with `templates validate` and `templates test` before subscribing."
+        "The agent validates and tests the template with `admin templates validate` and `admin templates test` before subscribing."
       ]
     },
     {
@@ -60,11 +60,11 @@
       "prompt": "Agent Feeds seems stale. Figure out whether the background fetcher is actually working and tell me the smallest safe next step.",
       "expected_output": "The agent checks polling status and stream health, distinguishes scheduler problems from per-stream errors/missing/stale state, and recommends a targeted fix such as installing polling, refreshing one stream, or reconfiguring a failed subscription. It does not refresh all streams unless necessary or requested.",
       "assertions": [
-        "The agent checks `python3 scripts/agentfeeds.py polling status --json`.",
+        "The agent checks `python3 scripts/agentfeeds.py admin polling status --json`.",
         "The agent checks `python3 scripts/agentfeeds.py streams health --json`.",
         "The response distinguishes polling installation problems from stream-level fetch errors.",
         "The recommended next action is targeted and safe, such as polling install, one-stream refresh, or subscription reconfiguration.",
-        "The agent does not run `python3 scripts/agentfeeds_fetch.py --all` as the first/default fix unless the user asked for a full refresh."
+        "The agent does not run `python3 scripts/agentfeeds.py refresh --all` as the first/default fix unless the user asked for a full refresh."
       ]
     },
     {
@@ -77,6 +77,18 @@
         "The response explains the built-in/local split using reuse, source family, privacy, and auth/operator-specific concerns.",
         "The agent proposes upstreaming only if the local template becomes broadly reusable and does not contain private details.",
         "The agent keeps command-based local authoring read-only and operator-approved."
+      ]
+    },
+    {
+      "id": "mac-personal-sources-setup",
+      "prompt": "I run a personal agent on my Mac. Help me make my Calendar, Reminders, and recent inbox mail available as ambient Agent Feeds context, but do not approve commands on my behalf.",
+      "expected_output": "The agent loads the macOS personal source setup reference, installs the macOS templates, explains that Calendar/Reminders/Mail templates are pending local_command sources, tells the user to run approve-command themselves for each source they want, subscribes only after approval, and warns about macOS permission prompts.",
+      "assertions": [
+        "The agent uses or proposes `python3 scripts/agentfeeds.py admin macos install-templates`.",
+        "The agent identifies `macos/calendar-today`, `macos/reminders-open`, and `macos/mail-inbox-recent`.",
+        "The agent tells the user to run `python3 scripts/agentfeeds.py admin templates approve-command <template-id>` themselves.",
+        "The agent does not approve local_command templates on behalf of the user.",
+        "The response mentions macOS Automation or app-data permissions may be required on first refresh."
       ]
     }
   ]
