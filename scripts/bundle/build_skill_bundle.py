@@ -23,6 +23,10 @@ EXCLUDE_PARTS = {
     ".pytest_cache",
     ".venv",
     "bundle",
+    "evals",
+}
+EXCLUDE_NAMES = {
+    "publishing.md",
 }
 EXCLUDE_SUFFIXES = {
     ".pyc",
@@ -32,6 +36,8 @@ EXCLUDE_SUFFIXES = {
 
 def should_include(path: Path) -> bool:
     if any(part in EXCLUDE_PARTS for part in path.parts):
+        return False
+    if path.name in EXCLUDE_NAMES:
         return False
     if any(part.endswith(".egg-info") for part in path.parts):
         return False
