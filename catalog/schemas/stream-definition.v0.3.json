@@ -70,7 +70,24 @@
       "required": ["kind"],
       "properties": {
         "kind": {
-          "enum": ["json_http", "paginated_json_http", "rss", "ical", "local_file", "local_command"]
+          "enum": [
+            "json_http",
+            "paginated_json_http",
+            "rss",
+            "ical",
+            "local_file",
+            "local_directory",
+            "markdown_vault",
+            "local_git_status",
+            "local_command",
+            "mac_calendar",
+            "mac_reminders",
+            "mac_notes",
+            "mac_mail",
+            "imessage_sqlite",
+            "safari_reading_list",
+            "finder_recent_downloads"
+          ]
         }
       }
     },
@@ -79,9 +96,25 @@
       "minimum": 60
     },
     "auth": {
-      "enum": ["none"]
+      "enum": ["none", "bearer_token"]
     },
     "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "catalog_tier": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "catalog_order": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "platforms": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "requires": {
       "type": "array",
       "items": { "type": "string" }
     },

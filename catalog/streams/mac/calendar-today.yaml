@@ -1,0 +1,23 @@
+id: mac/calendar-today
+title: Today's Calendar.app agenda
+description: Today's agenda from every calendar configured in Calendar.app.
+type: ical.event
+mode: event
+schema_url: https://agentfeeds.dev/schemas/ical-event.v1.json
+schema_version: 1.0.0
+parameters: []
+source_uri_template: "feed://mac.calendar/today"
+adapter:
+  kind: mac_calendar
+  scope: today
+  calendars: all
+  tcc_permission: Calendar
+recommended_poll_interval_seconds: 900
+auth: none
+tags: [mac, calendar, agenda, eventkit, tcc, no-auth]
+quality_tier: experimental
+catalog_tier: 1
+catalog_order: 10
+platforms: [macos]
+requires: [calendar_tcc]
+contributed_by: agentfeeds

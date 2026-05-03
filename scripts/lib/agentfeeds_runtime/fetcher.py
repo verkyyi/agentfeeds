@@ -441,14 +441,18 @@ def validate_stream_file(path: Path, root: Path = DEFAULT_ROOT) -> None:
                 raise ValueError(f"{path}: adapter.{required} is required for {adapter_kind}")
     if adapter_kind in {"rss", "ical"} and "url" not in stream["adapter"]:
         raise ValueError(f"{path}: adapter.url is required for {adapter_kind}")
-    if adapter_kind == "local_file" and "path" not in stream["adapter"]:
-        raise ValueError(f"{path}: adapter.path is required for local_file")
+    path_based_adapters = {"local_file", "local_directory", "markdown_vault", "local_git_status", "finder_recent_downloads", "safari_reading_list"}
+    if adapter_kind in path_based_adapters and "path" not in stream["adapter"]:
+        raise ValueError(f"{path}: adapter.path is required for {adapter_kind}")
     if adapter_kind == "local_command":
         command = stream["adapter"].get("command")
         if not isinstance(command, list) or not command or not all(isinstance(item, str) for item in command):
             raise ValueError(f"{path}: adapter.command must be a non-empty string array for local_command")
         if stream["mode"] == "event" and stream["adapter"].get("parse") != "json":
             raise ValueError(f"{path}: local_command event streams require adapter.parse: json")
+    tcc_adapters = {"mac_calendar", "mac_reminders", "mac_notes", "mac_mail", "imessage_sqlite"}
+    if adapter_kind in tcc_adapters and "tcc_permission" not in stream["adapter"]:
+        raise ValueError(f"{path}: adapter.tcc_permission is required for {adapter_kind}")
 
 
 def validate_template_tree(root: Path) -> list[Path]:
@@ -533,6 +537,17 @@ def resolve_secret_refs(root: Path, value: object) -> object:
     return value
 
 
+def add_auth_service_secret(adapter: dict) -> dict:
+    service = adapter.get("auth_service")
+    if not service:
+        return adapter
+    resolved = {**adapter}
+    headers = dict(resolved.get("headers") or {})
+    headers.setdefault("Authorization", f"Bearer {{{{secret:{service}_token}}}}")
+    resolved["headers"] = headers
+    return resolved
+
+
 def validate_parameters(stream: dict, parameters: dict) -> None:
     missing = [
         parameter["name"]
@@ -597,6 +612,7 @@ def publisher_for(stream_uri: str) -> str:
 def run_adapter(stream: dict, parameters: dict, root: Path | None = None) -> tuple[str, list[dict]]:
     validate_parameters(stream, parameters)
     adapter = substitute(stream["adapter"], parameters)
+    adapter = add_auth_service_secret(adapter)
     adapter = resolve_secret_refs(root, adapter) if root is not None else adapter
     if adapter.get("kind") == "local_command":
         if root is None:

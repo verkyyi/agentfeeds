@@ -45,4 +45,6 @@ recommended_poll_interval_seconds: 900
 auth: none
 tags: [dev, github, issues, free, no-auth]
 quality_tier: verified
+catalog_tier: 4
+catalog_order: 70
 contributed_by: agentfeeds

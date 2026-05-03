@@ -18,4 +18,6 @@ recommended_poll_interval_seconds: 1800
 auth: none
 tags: [calendar, ics, ical, events, free, no-auth]
 quality_tier: verified
+catalog_tier: 4
+catalog_order: 20
 contributed_by: agentfeeds

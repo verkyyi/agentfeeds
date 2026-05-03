@@ -35,4 +35,6 @@ recommended_poll_interval_seconds: 600
 auth: none
 tags: [weather, free, no-auth, global]
 quality_tier: verified
+catalog_tier: 4
+catalog_order: 30
 contributed_by: agentfeeds

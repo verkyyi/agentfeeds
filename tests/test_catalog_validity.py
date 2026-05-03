@@ -81,6 +81,17 @@ def test_bundled_catalog_supports_first_run_without_network(tmp_path, monkeypatc
     assert stream["adapter"]["kind"] == "local_file"
 
 
+def test_bundled_catalog_streams_validate(tmp_path, monkeypatch):
+    monkeypatch.delenv("AGENTFEEDS_CATALOG_DIR", raising=False)
+    monkeypatch.setattr(fetch.requests, "get", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("network used")))
+
+    stream_paths = sorted((ROOT / "catalog" / "streams").glob("**/*.yaml"))
+
+    assert len(stream_paths) == 25
+    for path in stream_paths:
+        fetch.validate_stream_file(path, tmp_path)
+
+
 def test_local_template_is_discoverable_and_validates(tmp_path):
     stream_dir = tmp_path / "templates" / "streams" / "personal"
     schema_dir = tmp_path / "templates" / "schemas" / "event-types"

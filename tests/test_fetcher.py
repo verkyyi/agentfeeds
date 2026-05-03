@@ -7,6 +7,7 @@ import textwrap
 
 import agentfeeds_runtime.adapters.http as http_adapter
 import agentfeeds_runtime.adapters.ical as ical_adapter
+import agentfeeds_runtime.adapters.mac_native as mac_native
 import agentfeeds_runtime.fetcher as fetcher
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -359,6 +360,167 @@ def test_secret_refs_resolve_before_http_adapter_runs(tmp_path, monkeypatch):
 
     assert seen["headers"]["Authorization"] == "Bearer secret-value"
     assert events[0]["data"] == {"title": "Private"}
+
+
+def test_auth_service_adds_bearer_secret_and_http_body(tmp_path, monkeypatch):
+    fetcher.ensure_root(tmp_path)
+    fetcher.write_secret(tmp_path, "linear_token", "linear-secret")
+    stream = {
+        "id": "tasks/linear-mine",
+        "title": "Linear",
+        "description": "Linear",
+        "type": "linear.issue",
+        "mode": "snapshot",
+        "schema_url": "https://agentfeeds.dev/schemas/linear.issue.v1.json",
+        "schema_version": "1.0.0",
+        "parameters": [],
+        "source_uri_template": "feed://api.linear.app/graphql/issues/mine",
+        "adapter": {
+            "kind": "json_http",
+            "url": "https://api.linear.app/graphql",
+            "method": "POST",
+            "auth_service": "linear",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"query": "{ viewer { id } }"},
+            "transform": {"language": "jmespath", "expression": "{title: data.viewer.id}"},
+        },
+    }
+    seen = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": {"viewer": {"id": "viewer-1"}}}
+
+    def fake_request(_method, _url, **kwargs):
+        seen.update(kwargs)
+        return FakeResponse()
+
+    monkeypatch.setattr(http_adapter.requests, "request", fake_request)
+
+    _stream_uri, events = fetcher.run_adapter(stream, {}, tmp_path)
+
+    assert seen["headers"]["Authorization"] == "Bearer linear-secret"
+    assert seen["json"] == {"query": "{ viewer { id } }"}
+    assert events[0]["data"] == {"title": "viewer-1"}
+
+
+def test_json_http_event_mode_emits_events(tmp_path, monkeypatch):
+    stream = {
+        "id": "tasks/todoist-today",
+        "title": "Todoist",
+        "description": "Todoist",
+        "type": "todoist.task",
+        "mode": "event",
+        "schema_url": "https://agentfeeds.dev/schemas/todoist.task.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://api.todoist.com/rest/v2/tasks/today",
+        "adapter": {
+            "kind": "json_http",
+            "url": "https://api.todoist.com/rest/v2/tasks",
+            "id_from": "id",
+            "transform": {"language": "jmespath", "expression": "[].{id: id, title: content}"},
+        },
+    }
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return [{"id": "task-1", "content": "Ship"}]
+
+    monkeypatch.setattr(http_adapter.requests, "request", lambda *_args, **_kwargs: FakeResponse())
+
+    _stream_uri, events = fetcher.run_adapter(stream, {}, tmp_path)
+
+    assert events[0]["id"] == "task-1"
+    assert events[0]["data"] == {"id": "task-1", "title": "Ship"}
+
+
+def test_local_directory_and_markdown_adapters(tmp_path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "b.md").write_text("---\ntitle: B title\ntags: [work, launch]\n---\n# Body\n\nBeta note", encoding="utf-8")
+    (docs / "a.txt").write_text("alpha", encoding="utf-8")
+
+    directory_stream = {
+        "id": "local/directory-recent",
+        "title": "Directory",
+        "type": "local.directory-entry",
+        "mode": "event",
+        "schema_url": "https://agentfeeds.dev/schemas/local.directory-entry.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://local.directory/recent?path={path}",
+        "adapter": {"kind": "local_directory", "path": "{path}", "limit": 10},
+        "parameters": [{"name": "path", "required": True}],
+    }
+    markdown_stream = {
+        "id": "local/markdown-vault",
+        "title": "Markdown",
+        "type": "local.markdown-document",
+        "mode": "event",
+        "schema_url": "https://agentfeeds.dev/schemas/local.markdown-document.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://local.markdown/vault?path={path}",
+        "adapter": {"kind": "markdown_vault", "path": "{path}", "parse_frontmatter": True, "limit": 10},
+        "parameters": [{"name": "path", "required": True}],
+    }
+
+    _uri, directory_events = fetcher.run_adapter(directory_stream, {"path": str(docs)}, tmp_path)
+    _uri, markdown_events = fetcher.run_adapter(markdown_stream, {"path": str(docs)}, tmp_path)
+
+    assert {event["data"]["name"] for event in directory_events} == {"a.txt", "b.md"}
+    assert markdown_events[0]["data"]["title"] == "B title"
+    assert markdown_events[0]["data"]["tags"] == ["work", "launch"]
+
+
+def test_local_git_status_adapter(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess = __import__("subprocess")
+    subprocess.run(["git", "init"], cwd=repo, check=True, stdout=subprocess.DEVNULL)
+    (repo / "tracked.txt").write_text("changed", encoding="utf-8")
+
+    stream = {
+        "id": "local/git-status",
+        "title": "Git",
+        "type": "local.git-status",
+        "mode": "snapshot",
+        "schema_url": "https://agentfeeds.dev/schemas/local.git-status.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://local.git/status?path={path}",
+        "adapter": {"kind": "local_git_status", "path": "{path}"},
+        "parameters": [{"name": "path", "required": True}],
+    }
+
+    _uri, events = fetcher.run_adapter(stream, {"path": str(repo)}, tmp_path)
+
+    assert events[0]["data"]["path"] == str(repo)
+    assert events[0]["data"]["clean"] is False
+    assert "tracked.txt" in events[0]["data"]["dirty_files"][0]
+
+
+def test_mac_adapter_reports_non_macos(tmp_path, monkeypatch):
+    monkeypatch.setattr(mac_native.platform, "system", lambda: "Linux")
+    stream = {
+        "id": "mac/calendar-today",
+        "type": "ical.event",
+        "mode": "event",
+        "schema_url": "https://agentfeeds.dev/schemas/ical-event.v1.json",
+        "schema_version": "1.0.0",
+        "source_uri_template": "feed://mac.calendar/today",
+        "adapter": {"kind": "mac_calendar", "scope": "today", "tcc_permission": "Calendar"},
+    }
+
+    try:
+        fetcher.run_adapter(stream, {}, tmp_path)
+    except RuntimeError as exc:
+        assert "requires macOS" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected macOS requirement failure")
 
 
 def test_local_command_fetch_can_parse_json_and_transform(tmp_path):

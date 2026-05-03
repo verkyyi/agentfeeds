@@ -29,4 +29,6 @@ recommended_poll_interval_seconds: 3600
 auth: none
 tags: [finance, currency, exchange-rate, free, no-auth]
 quality_tier: verified
+catalog_tier: 4
+catalog_order: 50
 contributed_by: agentfeeds

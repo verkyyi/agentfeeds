@@ -1,0 +1,23 @@
+id: mac/reminders-pending
+title: Pending Reminders.app items
+description: Open reminders with due dates and list grouping from Reminders.app.
+type: mac.reminder
+mode: event
+schema_url: https://agentfeeds.dev/schemas/mac.reminder.v1.json
+schema_version: 1.0.0
+parameters: []
+source_uri_template: "feed://mac.reminders/pending"
+adapter:
+  kind: mac_reminders
+  scope: pending
+  include_completed: false
+  tcc_permission: Reminders
+recommended_poll_interval_seconds: 900
+auth: none
+tags: [mac, reminders, tasks, tcc, no-auth]
+quality_tier: experimental
+catalog_tier: 1
+catalog_order: 30
+platforms: [macos]
+requires: [reminders_tcc]
+contributed_by: agentfeeds

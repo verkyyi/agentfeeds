@@ -1,0 +1,24 @@
+id: mac/notes-recent
+title: Recent Notes.app notes
+description: Recently modified Notes.app notes with titles and snippets.
+type: mac.note
+mode: event
+schema_url: https://agentfeeds.dev/schemas/mac.note.v1.json
+schema_version: 1.0.0
+parameters: []
+source_uri_template: "feed://mac.notes/recent?limit=20"
+adapter:
+  kind: mac_notes
+  scope: recent
+  limit: 20
+  include_body: false
+  tcc_permission: Automation
+recommended_poll_interval_seconds: 900
+auth: none
+tags: [mac, notes, recent, automation, tcc, no-auth]
+quality_tier: experimental
+catalog_tier: 1
+catalog_order: 40
+platforms: [macos]
+requires: [notes_automation_tcc]
+contributed_by: agentfeeds

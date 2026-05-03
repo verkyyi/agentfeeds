@@ -1,0 +1,24 @@
+id: mac/mail-unread
+title: Unread Mail.app messages
+description: Unread Mail.app subjects, senders, and snippets without message bodies.
+type: mac.mail-message
+mode: event
+schema_url: https://agentfeeds.dev/schemas/mac.mail-message.v1.json
+schema_version: 1.0.0
+parameters: []
+source_uri_template: "feed://mac.mail/unread?limit=50"
+adapter:
+  kind: mac_mail
+  scope: unread
+  limit: 50
+  include_body: false
+  tcc_permission: Automation
+recommended_poll_interval_seconds: 900
+auth: none
+tags: [mac, mail, inbox, unread, automation, tcc, no-auth]
+quality_tier: experimental
+catalog_tier: 1
+catalog_order: 50
+platforms: [macos]
+requires: [mail_automation_tcc]
+contributed_by: agentfeeds

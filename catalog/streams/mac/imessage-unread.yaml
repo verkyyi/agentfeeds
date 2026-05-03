@@ -1,0 +1,25 @@
+id: mac/imessage-unread
+title: Unread iMessage conversations
+description: Recent iMessage conversations with unread counts and last-message snippets.
+type: mac.imessage-thread
+mode: event
+schema_url: https://agentfeeds.dev/schemas/mac.imessage-thread.v1.json
+schema_version: 1.0.0
+parameters: []
+source_uri_template: "feed://mac.imessage/unread?limit=25"
+adapter:
+  kind: imessage_sqlite
+  database: "~/Library/Messages/chat.db"
+  scope: unread
+  limit: 25
+  read_only: true
+  tcc_permission: Full Disk Access
+recommended_poll_interval_seconds: 900
+auth: none
+tags: [mac, imessage, messages, unread, sqlite, tcc, no-auth]
+quality_tier: experimental
+catalog_tier: 1
+catalog_order: 60
+platforms: [macos]
+requires: [full_disk_access]
+contributed_by: agentfeeds

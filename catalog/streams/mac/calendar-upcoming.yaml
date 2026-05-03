@@ -1,0 +1,24 @@
+id: mac/calendar-upcoming
+title: Upcoming Calendar.app events
+description: Next 7 days from every calendar configured in Calendar.app.
+type: ical.event
+mode: event
+schema_url: https://agentfeeds.dev/schemas/ical-event.v1.json
+schema_version: 1.0.0
+parameters: []
+source_uri_template: "feed://mac.calendar/upcoming?days=7"
+adapter:
+  kind: mac_calendar
+  scope: upcoming
+  days: 7
+  calendars: all
+  tcc_permission: Calendar
+recommended_poll_interval_seconds: 3600
+auth: none
+tags: [mac, calendar, upcoming, eventkit, tcc, no-auth]
+quality_tier: experimental
+catalog_tier: 1
+catalog_order: 20
+platforms: [macos]
+requires: [calendar_tcc]
+contributed_by: agentfeeds
