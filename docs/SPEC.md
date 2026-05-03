@@ -189,6 +189,7 @@ The primary agent-facing active stream map is the `python3 scripts/agentfeeds.py
 ```
 python3 scripts/agentfeeds.py streams list --json
 python3 scripts/agentfeeds.py streams search <topic> --json
+python3 scripts/agentfeeds.py streams health --json
 python3 scripts/agentfeeds.py streams show <subscription-id> --json
 python3 scripts/agentfeeds.py streams read <subscription-id> --json
 ```
@@ -200,6 +201,8 @@ python3 scripts/agentfeeds.py search <topic> --json
 ```
 
 It searches existing local state files for active subscriptions and returns compact matching snippets with subscription id, title, freshness, event id/time when available, and the matching data path. It does not refresh streams by itself; agents should refresh a stale matching stream only when the user needs current data.
+
+`python3 scripts/agentfeeds.py streams health --json` is the operational health surface. It combines subscription freshness with persisted fetch status from `~/.agentfeeds/status/subscriptions/` and reports missing state, stale state, last success, last error, and consecutive failures.
 
 The session-start prompt surface is `python3 scripts/agentfeeds.py brief`. Its default output is a compact stable block intended for a system-level or persistent context slot:
 
@@ -435,6 +438,7 @@ The Hermes plugin and skill live in the standalone `agentfeeds-hermes-plugin` re
 Agent-facing integrations should teach these behaviors:
 
 1. **At session start:** Use `python3 scripts/agentfeeds.py brief` for compact stable prompt context.
+1. **When checking ambient readiness:** Use `python3 scripts/agentfeeds.py polling status --json` and `python3 scripts/agentfeeds.py streams health --json`.
 1. **When local context may be relevant:** Use `python3 scripts/agentfeeds.py search <topic> --json` to find matching local state snippets.
 1. **When user asks about a topic covered by a subscribed stream:** Use `python3 scripts/agentfeeds.py streams read <subscription-id> --json`. Do not web-search if a non-stale stream covers the question.
 1. **When the user asks to subscribe to something:** Search templates with `python3 scripts/agentfeeds.py templates search <query>`, inspect candidates with `python3 scripts/agentfeeds.py templates show <template-id>`, then subscribe.

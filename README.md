@@ -75,6 +75,7 @@ Background refresh is expected for normal use:
 ```bash
 python3 scripts/agentfeeds.py polling status
 python3 scripts/agentfeeds.py polling install
+python3 scripts/agentfeeds.py streams health
 ```
 
 Agents should also generate the compact session brief and place it into the most stable prompt/context slot their host provides, preferably a system-level slot:
@@ -93,6 +94,7 @@ Agent Feeds gives the agent a small local control surface:
 - `python3 scripts/agentfeeds.py subscribe ...` creates active subscriptions
 - `python3 scripts/agentfeeds.py streams ...` lists, searches, shows, and reads refreshed data
 - `python3 scripts/agentfeeds.py search ...` searches refreshed local state and returns matching snippets
+- `python3 scripts/agentfeeds.py streams health ...` reports missing, stale, and failing streams
 - `python3 scripts/agentfeeds_fetch.py ...` updates the catalog and refreshes subscriptions
 - `python3 scripts/agentfeeds.py polling ...` keeps subscriptions warm in the background
 - `python3 scripts/agentfeeds.py brief` emits compact stable context for session-start prompt insertion
@@ -181,6 +183,7 @@ Check it with:
 
 ```bash
 python3 scripts/agentfeeds.py polling status
+python3 scripts/agentfeeds.py streams health
 ```
 
 Uninstall it only when you no longer want ambient refresh:

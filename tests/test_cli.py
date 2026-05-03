@@ -187,6 +187,14 @@ def test_cli_streams_list_search_show_and_read(tmp_path, capsys):
     assert read["template"] == "local/file"
     assert read["data"]["content"] == "# Project Notes\n\nLocal context.\n"
 
+    assert cli.main(["--root", str(root), "streams", "health", "--json"]) == 0
+    health = json.loads(capsys.readouterr().out)
+    assert health["summary"]["total"] == 1
+    assert health["summary"]["ok"] == 1
+    assert health["summary"]["healthy"] is True
+    assert health["streams"][0]["last_success_at"]
+    assert health["streams"][0]["last_error"] is None
+
 
 def test_cli_brief_outputs_compact_stable_prompt_context(tmp_path, capsys):
     source = tmp_path / "Project Notes.md"
@@ -304,6 +312,25 @@ def test_cli_search_finds_event_state_content_across_fields(tmp_path, capsys):
     assert match["item_id"] == "one"
     assert match["path"] == "data"
     assert "Alice update" in match["snippet"]
+
+
+def test_cli_streams_health_reports_fetch_errors(tmp_path, capsys):
+    missing = tmp_path / "missing.md"
+    root = tmp_path / "agentfeeds"
+
+    assert cli.main(["--root", str(root), "subscribe", "local/file", f"path={missing}"]) == 1
+    capsys.readouterr()
+
+    assert cli.main(["--root", str(root), "streams", "health", "--json"]) == 0
+    health = json.loads(capsys.readouterr().out)
+    assert health["summary"]["total"] == 1
+    assert health["summary"]["error"] == 1
+    assert health["summary"]["healthy"] is False
+    row = health["streams"][0]
+    assert row["id"] == "local/missing-md"
+    assert row["health"] == "error"
+    assert row["consecutive_failures"] == 1
+    assert "local file not found" in row["last_error"]
 
 
 def test_cli_polling_status_reports_cron_block(tmp_path, capsys, monkeypatch):

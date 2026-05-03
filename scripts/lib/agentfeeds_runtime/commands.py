@@ -602,6 +602,79 @@ def _print_stream_rows(rows: list[dict]) -> None:
         print(f"{row['id']}: {row['title']} [{freshness}, {exists}, updated={row['last_updated'] or 'never'}]")
 
 
+def _active_fetch_error(status: dict) -> bool:
+    if int(status.get("consecutive_failures") or 0) <= 0:
+        return False
+    error_at = fetch.parse_utc(status.get("last_error_at"))
+    success_at = fetch.parse_utc(status.get("last_success_at"))
+    return bool(error_at and (not success_at or error_at >= success_at))
+
+
+def _health_state(row: dict, status: dict) -> str:
+    if _active_fetch_error(status):
+        return "error"
+    if not row["exists"]:
+        return "missing"
+    if row["stale"]:
+        return "stale"
+    if row["due"]:
+        return "due"
+    return "ok"
+
+
+def _stream_health(root: Path) -> dict:
+    rows = _stream_rows(root)
+    streams = []
+    counts = Counter()
+    for row in rows:
+        status = fetch.load_fetch_status(root, row["id"])
+        state = _health_state(row, status)
+        counts[state] += 1
+        streams.append(
+            {
+                **row,
+                "health": state,
+                "last_attempt_at": status.get("last_attempt_at"),
+                "last_success_at": status.get("last_success_at"),
+                "last_error_at": status.get("last_error_at"),
+                "last_error": status.get("last_error"),
+                "consecutive_failures": int(status.get("consecutive_failures") or 0),
+            }
+        )
+    summary = {
+        "total": len(streams),
+        "ok": counts.get("ok", 0),
+        "due": counts.get("due", 0),
+        "stale": counts.get("stale", 0),
+        "missing": counts.get("missing", 0),
+        "error": counts.get("error", 0),
+    }
+    summary["healthy"] = summary["total"] > 0 and summary["missing"] == 0 and summary["error"] == 0 and summary["stale"] == 0
+    return {"summary": summary, "streams": streams}
+
+
+def _print_health(result: dict) -> None:
+    summary = result["summary"]
+    print(
+        "Streams: "
+        f"{summary['total']} total, {summary['ok']} ok, {summary['due']} due, "
+        f"{summary['stale']} stale, {summary['missing']} missing, {summary['error']} error"
+    )
+    for row in result["streams"]:
+        print(f"{row['id']}: {row['health']} [updated={row['last_updated'] or 'never'}]")
+        if row.get("last_error"):
+            print(f"  error: {row['last_error']}")
+
+
+def cmd_streams_health(args: argparse.Namespace) -> int:
+    result = _stream_health(args.root)
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+    _print_health(result)
+    return 0
+
+
 def _brief_entries(root: Path, max_streams: int, include_freshness: bool) -> tuple[list[dict], bool]:
     rows = _stream_rows(root)
     entries = []
@@ -1245,6 +1318,9 @@ def build_parser() -> argparse.ArgumentParser:
     streams_search.add_argument("query", nargs="*")
     streams_search.add_argument("--json", action="store_true")
     streams_search.set_defaults(func=cmd_streams_search)
+    streams_health = stream_subparsers.add_parser("health", help="show stream freshness and fetch errors")
+    streams_health.add_argument("--json", action="store_true")
+    streams_health.set_defaults(func=cmd_streams_health)
     streams_show = stream_subparsers.add_parser("show", help="show active stream metadata")
     streams_show.add_argument("subscription_id")
     streams_show.add_argument("--json", action="store_true")

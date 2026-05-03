@@ -91,6 +91,12 @@ def test_once_fetch_writes_snapshot_state_and_catalog(tmp_path, monkeypatch):
     assert state["_meta"]["title"] == "Santa Clara current weather"
     assert state["_meta"]["stale"] is False
     assert state["data"]["temperature_c"] == 22.1
+    status = fetcher.load_fetch_status(tmp_path, "weather/santa-clara-current")
+    assert status["subscription_id"] == "weather/santa-clara-current"
+    assert status["last_success_at"]
+    assert status["last_error"] is None
+    assert status["consecutive_failures"] == 0
+    assert status["state_path"] == "state/api.open-meteo.com/v1.forecast.latitude=37.33,longitude=-121.89.json"
     catalog = (tmp_path / "catalog.md").read_text(encoding="utf-8")
     assert "weather/santa-clara-current" in catalog
     assert "weather/openmeteo-current" in catalog
@@ -160,6 +166,40 @@ def test_local_file_fetch_writes_snapshot_state(tmp_path):
     assert state["data"]["name"] == "notes.md"
     assert state["data"]["content"] == "# Notes\n\nLocal context.\n"
     assert len(state["data"]["sha256"]) == 64
+
+
+def test_fetch_failure_writes_status(tmp_path, capsys):
+    agentfeeds_root = tmp_path / "agentfeeds"
+    missing = tmp_path / "missing.md"
+    agentfeeds_root.mkdir()
+    (agentfeeds_root / "subscriptions.yaml").write_text(
+        textwrap.dedent(
+            f"""
+            version: "0.3"
+            defaults:
+              poll_interval_seconds: 600
+              history_limit: 50
+            subscriptions:
+              - id: local/missing-md
+                title: missing.md
+                template: local/file
+                parameters:
+                  path: {missing}
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    assert fetcher.main(["--root", str(agentfeeds_root), "--once", "local/missing-md"]) == 1
+    assert "local/missing-md" in capsys.readouterr().err
+
+    status = fetcher.load_fetch_status(agentfeeds_root, "local/missing-md")
+    assert status["subscription_id"] == "local/missing-md"
+    assert status["last_attempt_at"]
+    assert status["last_success_at"] is None
+    assert status["last_error_at"]
+    assert "local file not found" in status["last_error"]
+    assert status["consecutive_failures"] == 1
 
 
 def test_local_command_fetch_writes_stdout_snapshot():

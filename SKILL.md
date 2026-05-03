@@ -46,6 +46,7 @@ Ensure background refresh is installed:
 ```bash
 python3 scripts/agentfeeds.py polling status --json
 python3 scripts/agentfeeds.py polling install
+python3 scripts/agentfeeds.py streams health --json
 ```
 
 If console wrappers are already installed, `agentfeeds` and `agentfeeds-fetch` are acceptable equivalents, but prefer bundled scripts for portability.
@@ -68,8 +69,9 @@ At the start of each session:
 
 1. Ensure runtime setup has been completed. If the bundled scripts fail because dependencies are missing, run `python3 scripts/setup.py`.
 2. Ensure background refresh is installed with `python3 scripts/agentfeeds.py polling status --json`; if it is missing, run `python3 scripts/agentfeeds.py polling install`.
-3. Generate stable compact context with `python3 scripts/agentfeeds.py brief`.
-4. If the agent framework supports prompt slots, place the exact brief output in the system-level or persistent context slot so stable stream metadata can benefit from model-side prompt caching.
+3. Check stream health with `python3 scripts/agentfeeds.py streams health --json`; report degraded ambient awareness if streams have errors, missing state, or stale state.
+4. Generate stable compact context with `python3 scripts/agentfeeds.py brief`.
+5. If the agent framework supports prompt slots, place the exact brief output in the system-level or persistent context slot so stable stream metadata can benefit from model-side prompt caching.
 
 The default brief intentionally avoids volatile timestamps. Use `python3 scripts/agentfeeds.py brief --include-freshness` only when the user asks about freshness or debugging.
 
@@ -122,6 +124,14 @@ When the user asks about a topic covered by a subscribed stream:
 2. If needed, inspect metadata with `python3 scripts/agentfeeds.py streams show <subscription-id> --json`.
 3. If stale and freshness matters, refresh the stream before answering.
 4. Read compact data with `python3 scripts/agentfeeds.py streams read <subscription-id> --limit 20 --json`.
+
+When a stream appears broken, run:
+
+```bash
+python3 scripts/agentfeeds.py streams health --json
+```
+
+Use health output to distinguish missing state, stale state, and fetch errors before asking the user to retry or reconfigure a subscription.
 
 Refresh one subscription:
 

@@ -6,6 +6,7 @@ Check scheduler status:
 
 ```bash
 python3 scripts/agentfeeds.py polling status --json
+python3 scripts/agentfeeds.py streams health --json
 ```
 
 Install or update background polling:
@@ -23,6 +24,8 @@ python3 scripts/agentfeeds.py polling uninstall
 On macOS, polling uses launchd. On Linux and FreeBSD, polling uses a tagged crontab block. The runtime computes the shortest configured subscription interval and floors it at 5 minutes.
 
 Agents should try to verify or install polling at session start. If the scheduler is unsupported or unavailable, report that Agent Feeds can still refresh explicitly but ambient refresh is degraded.
+
+Use stream health to distinguish scheduler setup from per-stream fetch problems. `streams health --json` reports missing state, stale state, last success, last error, and consecutive failure count for each active subscription.
 
 Explicit refresh remains useful for immediate freshness:
 

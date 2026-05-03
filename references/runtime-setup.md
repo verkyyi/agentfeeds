@@ -35,6 +35,7 @@ After setup, verify or install background refresh:
 ```bash
 python3 scripts/agentfeeds.py polling status --json
 python3 scripts/agentfeeds.py polling install
+python3 scripts/agentfeeds.py streams health --json
 ```
 
 At session start, generate the compact prompt brief:

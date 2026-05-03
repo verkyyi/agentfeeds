@@ -125,6 +125,8 @@ Agents should read it through `python3 scripts/agentfeeds.py streams read <subsc
 
 `python3 scripts/agentfeeds.py search <topic> --json` searches refreshed local stream state and returns compact matching snippets. This is the preferred first step when a user prompt may be covered by existing ambient context.
 
+`python3 scripts/agentfeeds.py streams health --json` reports whether ambient refresh is working: missing state, stale streams, last success, last error, and consecutive fetch failures.
+
 ### Adapter
 
 An adapter is the fetch mechanism behind a template. Current adapter types include HTTP JSON, RSS, iCalendar, local files, and local commands.

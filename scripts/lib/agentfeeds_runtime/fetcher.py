@@ -76,6 +76,45 @@ def atomic_write_json(path: Path, payload: object) -> None:
     tmp_path.replace(path)
 
 
+def status_path_for_subscription(root: Path, subscription_id: str) -> Path:
+    parts = [part for part in subscription_id.split("/") if part]
+    if not parts:
+        parts = ["unknown"]
+    safe_parts = [re.sub(r"[^A-Za-z0-9._-]+", "-", part).strip("-") or "unknown" for part in parts]
+    safe_parts[-1] = f"{safe_parts[-1]}.json"
+    return root / "status" / "subscriptions" / Path(*safe_parts)
+
+
+def load_fetch_status(root: Path, subscription_id: str) -> dict:
+    return load_existing_state(status_path_for_subscription(root, subscription_id)) or {}
+
+
+def write_fetch_status(
+    root: Path,
+    subscription: dict,
+    stream: dict | None,
+    *,
+    attempted_at: str,
+    succeeded: bool,
+    error: str | None = None,
+    state_path: Path | None = None,
+) -> None:
+    subscription_id = str(subscription.get("id", "<unknown>"))
+    previous = load_fetch_status(root, subscription_id)
+    payload = {
+        "subscription_id": subscription_id,
+        "template_id": template_id_for(subscription) if subscription.get("template") else None,
+        "title": subscription_title(subscription, stream or {}) if stream else str(subscription.get("title") or subscription_id),
+        "last_attempt_at": attempted_at,
+        "last_success_at": attempted_at if succeeded else previous.get("last_success_at"),
+        "last_error_at": None if succeeded else attempted_at,
+        "last_error": None if succeeded else error,
+        "consecutive_failures": 0 if succeeded else int(previous.get("consecutive_failures") or 0) + 1,
+        "state_path": str(state_path.relative_to(root)) if state_path and root in state_path.parents else previous.get("state_path"),
+    }
+    atomic_write_json(status_path_for_subscription(root, subscription_id), payload)
+
+
 @contextlib.contextmanager
 def fetch_lock(root: Path):
     path = root / LOCK_FILE_NAME
@@ -632,6 +671,9 @@ def run_fetch(args: argparse.Namespace, root: Path) -> int:
     force = args.all or bool(args.stream) or bool(args.once)
     failures = 0
     for subscription in active:
+        attempted_at = now_utc()
+        stream = None
+        path = None
         try:
             stream = load_stream_definition(root, template_id_for(subscription))
             parameters = subscription.get("parameters") or {}
@@ -647,8 +689,10 @@ def run_fetch(args: argparse.Namespace, root: Path) -> int:
             existing = load_existing_state(path)
             payload = state_payload(subscription, stream, stream_uri, events, existing, interval_seconds, history_limit)
             atomic_write_json(path, payload)
+            write_fetch_status(root, subscription, stream, attempted_at=attempted_at, succeeded=True, state_path=path)
         except Exception as exc:  # noqa: BLE001 - keep cron-friendly failure reporting.
             failures += 1
+            write_fetch_status(root, subscription, stream, attempted_at=attempted_at, succeeded=False, error=str(exc), state_path=path)
             print(f"{subscription.get('id', '<unknown>')}: {exc}", file=sys.stderr)
 
     regenerate_catalog(root)
