@@ -1,23 +1,16 @@
-# Agent Feeds
+# Agent Feeds Skill
 
-Agent Feeds is a local-first ambient context layer for Hermes and personal agents.
+Agent Feeds is an Agent Skill that gives compatible agents a local-first feed layer: discover feed templates, subscribe to sources, refresh them in the background, and answer from compact local stream state instead of making the user repeat context.
 
-Personal agents often start sessions blind: users repeat project context, paste large prompt blobs, or make the agent re-search/re-run commands for state that could already be cached locally. Agent Feeds fixes that with refreshable subscriptions, compact prompt metadata, and inspectable JSON state on disk.
+The primary audience for this repository is agent operators who want to install, publish, or audit the skill bundle. The Python package and CLI are implementation details for the agent to drive.
 
-**Agents need feeds, not just memory.** Memory is for durable facts. Feeds are for fresh, timestamped state: repo issues, project notes, RSS/news, calendars, weather, local dashboards, or approved local command output.
+**Agents need feeds, not just memory.** Memory is for durable facts. Feeds are for fresh, timestamped state: project notes, RSS/news, GitHub issues and releases, calendars, weather, local dashboards, or operator-approved command output.
 
 ## Quick Demo
 
 ![Agent Feeds interactive session demo](assets/agentfeeds-demo.gif)
 
-Install the standalone Hermes plugin:
-
-```bash
-git clone https://github.com/verkyyi/agentfeeds-hermes-plugin ~/.hermes/plugins-src/agentfeeds-hermes-plugin
-~/.hermes/plugins-src/agentfeeds-hermes-plugin/install.sh
-```
-
-Restart Hermes, then try one prompt at a time:
+After installing the skill, ask your agent:
 
 ```text
 What Agent Feeds templates can I subscribe to?
@@ -39,65 +32,70 @@ Subscribe my project notes at ~/notes/project.md as Project notes.
 Refresh Project notes and summarize it.
 ```
 
-What happens under the hood:
+The agent should handle template discovery, subscription setup, refreshes, and compact state reads through the bundled scripts. You should not need to know template IDs, subscription IDs, or CLI flags unless you ask for them.
 
-- `python scripts/agentfeeds.py` manages active subscriptions and template discovery
-- `python scripts/agentfeeds_fetch.py` refreshes subscribed streams into local JSON state
-- agents use `python scripts/agentfeeds.py streams ...` to list and read compact relevant data
-- raw files stay inspectable for debugging, but they are not the normal agent interface
+## Install The Skill
 
-Agent Feeds is not long-term memory. It is a refreshable, local-first context layer for fresh, inspectable ambient context that lives on your machine.
+Download the latest skill bundle from the bundle release and unpack it into your agent's skills directory:
 
-This repository is also an agent-agnostic Agent Skill. Skills-compatible agents can load [SKILL.md](SKILL.md) for portable instructions on using the Agent Feeds CLI and subscribed stream data.
+```text
+https://github.com/verkyyi/agentfeeds/releases/tag/skill-v0.1.0
+```
 
-## Skill Runtime Setup
+The release asset is:
 
-From this skill checkout, install the local Python runtime once:
+```text
+agentfeeds-skill-v0.1.0.zip
+```
+
+The unpacked skill folder contains:
+
+- `SKILL.md`: agent-facing instructions
+- `agents/openai.yaml`: skill list metadata for compatible UIs
+- `scripts/`: deterministic CLI entry points the agent can run
+- `scripts/lib/agentfeeds_runtime/`: bundled Python runtime package
+- `references/`: setup, template authoring, background refresh, and publishing notes loaded only when needed
+- `assets/`: demo and skill assets
+
+From the skill root, run setup once:
 
 ```bash
 python scripts/setup.py
 ```
 
-Then agents can drive the bundled scripts directly:
+This installs the bundled runtime into `~/.agentfeeds/runtime-venv/`. The script entry points automatically re-exec through that environment after setup:
 
 ```bash
 python scripts/agentfeeds.py --help
 python scripts/agentfeeds_fetch.py --help
 ```
 
-## Why It Exists
+## What The Skill Enables
 
-Personal agents need awareness of local and private state without stuffing every detail into the prompt, rerunning expensive discovery, or reaching for web search first.
+Agent Feeds gives the agent a small local control surface:
 
-Agent Feeds keeps the heavy data on disk:
+- `python scripts/agentfeeds.py templates ...` discovers reusable feed definitions
+- `python scripts/agentfeeds.py subscribe ...` creates active subscriptions
+- `python scripts/agentfeeds.py streams ...` lists, searches, shows, and reads refreshed data
+- `python scripts/agentfeeds_fetch.py ...` updates the catalog and refreshes subscriptions
+- `python scripts/polling/install.py` keeps subscriptions warm in the background
 
-- compact stream metadata is injected into Hermes
-- detailed JSON state is read only when relevant
-- background refresh keeps subscriptions warm
-- templates can be public feeds, local files, or operator-approved local commands
+Runtime state lives under `~/.agentfeeds/`, but agents should normally use the CLI instead of reading or writing storage files directly. The file layout remains inspectable for debugging and local template authoring.
 
-This makes the agent context-aware while keeping the data path visible and debuggable.
+## Core Vocabulary
 
-Agent Feeds also gives agents a small local control surface for discovering templates, subscribing to sources, refreshing state, reading local snapshots/events, and reporting the result in conversation.
+- Template: reusable feed definition. Some templates are ready to subscribe with no parameters; others require parameters.
+- Subscription: configured active instance of a template.
+- Stream: readable refreshed data for an active subscription.
 
-## What You Can Ask
+For example, `news/rss-generic` is a template, `news/openai-com` can be a subscription, and the refreshed RSS items are the stream data.
 
-Each example is meant to be used as a single message to Hermes:
+## Operator Workflows
+
+Ask your agent for outcomes in natural language:
 
 ```text
 What Agent Feeds templates can I subscribe to?
-```
-
-```text
-Subscribe my project notes at ~/notes/project.md as Project notes.
-```
-
-```text
-Refresh Project notes and tell me what changed.
-```
-
-```text
-Subscribe me to Hacker News front page.
 ```
 
 ```text
@@ -105,81 +103,27 @@ Subscribe me to OpenAI News from https://openai.com/news/rss.xml.
 ```
 
 ```text
+Refresh OpenAI News and tell me what changed.
+```
+
+```text
 Can Agent Feeds subscribe to my SQLite task database? If not, draft a template.
 ```
 
-Hermes should handle the details. You should not need to know template IDs, subscription IDs, or CLI flags unless you explicitly ask for them.
+The skill instructs the agent to:
 
-## Install For Hermes
+- search existing templates first
+- collect only required template parameters
+- subscribe through the CLI
+- refresh before summarizing when freshness matters
+- read compact stream data only when relevant
+- draft and test local templates when no built-in template fits
 
-Use the standalone Hermes plugin repo:
-
-```bash
-git clone https://github.com/verkyyi/agentfeeds-hermes-plugin ~/.hermes/plugins-src/agentfeeds-hermes-plugin
-~/.hermes/plugins-src/agentfeeds-hermes-plugin/install.sh
-```
-
-The installer:
-
-- clones or updates Agent Feeds core under `~/.hermes/plugins-src/agentfeeds-core`
-- clones or updates the built-in template catalog under `~/.hermes/plugins-src/agentfeeds-catalog`
-- symlinks the Hermes plugin to `~/.hermes/plugins/agentfeeds`
-- symlinks the Hermes skill to `~/.hermes/skills/agentfeeds`
-- installs Agent Feeds command wrappers in `~/.local/bin`
-- enables the Hermes plugin
-- initializes the local Agent Feeds root
-
-Restart Hermes after installation.
-
-## How It Works
-
-Agent Feeds stores local state under `~/.agentfeeds/`, but agents should normally drive it through the CLI:
-
-- `python scripts/agentfeeds.py templates ...` discovers reusable feed definitions
-- `python scripts/agentfeeds.py subscribe ...` creates active subscriptions
-- `python scripts/agentfeeds.py streams ...` lists and reads refreshed data
-- `python scripts/agentfeeds_fetch.py ...` refreshes subscriptions
-
-Full data stays on disk and is read only when relevant. The storage layout remains inspectable, but it should be a debug and authoring surface rather than ambient prompt context.
-
-## Demo Flow
-
-After installing the Hermes plugin, ask Hermes one prompt at a time:
-
-```text
-What Agent Feeds templates can I subscribe to?
-```
-
-```text
-Subscribe me to Hacker News front page.
-```
-
-```text
-Show me the current Hacker News front page from Agent Feeds.
-```
-
-Or inspect the same flow directly:
-
-```bash
-python scripts/agentfeeds.py templates search hacker
-python scripts/agentfeeds.py subscribe dev/hackernews-frontpage
-python scripts/agentfeeds.py streams list
-python scripts/agentfeeds.py streams read dev/hackernews-frontpage --json
-```
-
-For a private local source:
-
-```text
-Subscribe my project notes at ~/notes/project.md as Project notes.
-```
-
-```text
-Refresh Project notes and summarize it.
-```
+For `local_command` templates, the agent should only create commands you explicitly approve. Command templates run without a shell, with timeout and output limits.
 
 ## Built-In Templates
 
-Built-in template definitions live in the standalone catalog repo:
+Built-in template definitions live in the standalone catalog repository:
 
 ```text
 https://github.com/verkyyi/agentfeeds-catalog
@@ -200,8 +144,6 @@ Current built-in templates include:
 - `geo/usgs-earthquakes-hour`: recent USGS earthquakes
 - `space/iss-location`: current ISS location
 
-Catalog entries are templates. Active subscriptions are concrete instances. For example, `news/rss-generic` can become `news/openai-com`, and `local/file` can become `local/project-notes-md`.
-
 Catalog loading can be pointed at a local checkout or alternate raw source:
 
 ```bash
@@ -211,7 +153,7 @@ AGENTFEEDS_CATALOG_BASE_URL=https://raw.githubusercontent.com/verkyyi/agentfeeds
 
 ## Background Refresh
 
-Install background polling when you want subscriptions to stay warm without waiting for Hermes to refresh them during a conversation:
+Install background polling when you want subscriptions to stay warm without waiting for the agent to refresh them during a conversation:
 
 ```bash
 python scripts/polling/install.py
@@ -225,44 +167,28 @@ python scripts/polling/uninstall.py
 
 On macOS this installs a LaunchAgent at `~/Library/LaunchAgents/dev.agentfeeds.fetch.plist`. On Linux it installs a tagged crontab block. The interval is the shortest configured subscription interval, floored at 5 minutes.
 
-## Template Authoring
+## Hermes
 
-If no built-in template fits, ask Hermes to draft one:
-
-```text
-Can Agent Feeds subscribe to my local SQLite task database? If not, draft a template.
-```
-
-Agents should:
-
-- check existing templates first
-- draft template YAML under `~/.agentfeeds/templates/streams/`
-- draft or reuse a schema under `~/.agentfeeds/templates/schemas/event-types/`
-- validate the template with `python scripts/agentfeeds.py templates validate`
-- test it once with `python scripts/agentfeeds.py templates test <template-id> key=value`
-- smoke-test it with a temporary Agent Feeds root before touching your live subscriptions
-
-Command-based templates are supported through `local_command`, but agents should only create them for commands you explicitly approve. They run without a shell, with timeout and output limits. They can capture one command snapshot or parse JSON output into event items.
-
-For personal agents, prefer local/private read-only templates before adding public feeds.
-
-## Manual Inspection
-
-You can inspect Agent Feeds directly when needed:
+Hermes users can install the standalone Hermes plugin instead of manually unpacking the skill:
 
 ```bash
-python scripts/agentfeeds.py streams list
-python scripts/agentfeeds.py streams search project
-python scripts/agentfeeds.py templates search local
-python scripts/agentfeeds.py templates adapters
-python scripts/agentfeeds.py templates list
-python scripts/agentfeeds.py templates path
-python scripts/agentfeeds.py templates scaffold json_http personal/tasks
-python scripts/agentfeeds.py templates test personal/tasks url=https://example.com/tasks.json
-python scripts/agentfeeds.py templates validate
+git clone https://github.com/verkyyi/agentfeeds-hermes-plugin ~/.hermes/plugins-src/agentfeeds-hermes-plugin
+~/.hermes/plugins-src/agentfeeds-hermes-plugin/install.sh
 ```
 
-These commands are mainly for debugging. The normal UX is to ask Hermes for the outcome you want.
+The installer clones or updates this core skill repo, clones or updates the built-in template catalog, symlinks the Hermes plugin and skill, installs command wrappers, enables the plugin, and initializes `~/.agentfeeds/`.
+
+Restart Hermes after installation.
+
+## Publishing
+
+This repo is the source tree for the skill. Release artifacts should be built as portable skill bundles:
+
+```bash
+python scripts/bundle/build_skill_bundle.py --output dist/agentfeeds-skill-v0.1.0.zip
+```
+
+The bundle intentionally includes only the skill surface and runtime files needed by agents. Repo-only docs, tests, build outputs, and caches are excluded.
 
 ## FAQ
 
@@ -272,7 +198,7 @@ Memory is for durable facts that should survive across sessions. Agent Feeds is 
 
 ### Why not put everything in the prompt?
 
-Large prompts are expensive, noisy, and stale. Agent Feeds injects only a compact catalog of available streams, then lets Hermes read detailed state only when the user asks something relevant.
+Large prompts are expensive, noisy, and stale. Agent Feeds lets the agent discover available streams, then read detailed state only when the user asks something relevant.
 
 ### Why not a vector database?
 
@@ -280,13 +206,13 @@ Agent Feeds is not semantic recall. It is structured, inspectable current state.
 
 ### Why not MCP?
 
-MCP is a great tool interface. Agent Feeds is a local state substrate: background refresh, subscriptions, a compact catalog, and state files that agents can inspect across sessions. They can complement each other.
+MCP is a tool interface. Agent Feeds is a local state substrate: background refresh, subscriptions, a compact catalog, and state files that agents can inspect across sessions. They can complement each other.
 
 ### Is this an RSS reader?
 
 RSS is one template type. Agent Feeds also supports local files, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and operator-approved local commands. The product is the subscription/state layer for agents, not a human feed UI.
 
-## Sharing
+## More Docs
 
 See [docs/DEMO.md](docs/DEMO.md) for the demo transcript and talking points.
 
