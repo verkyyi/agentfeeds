@@ -1,65 +1,75 @@
-# Agent Feeds Skill
+# AgentFeeds
 
-Agent Feeds is an Agent Skill that gives compatible agents a local-first ambient context layer: discover feed templates, subscribe to sources, keep them refreshed in the background, and answer from compact local stream state instead of making the user repeat context or rerunning the same data pipeline.
+Ready-to-read context cache for personal agents.
 
-The primary audience for this repository is agent operators who want to install, publish, or audit the skill bundle. The Python package and CLI are implementation details for the agent to drive.
+AgentFeeds keeps changing context warm on disk — calendars, inboxes, reminders, GitHub, RSS/news, weather, notes, dashboards, and approved local sources — so agents can read compact local stream state before scanning skills, searching the web, re-fetching APIs, or asking the user to repeat context.
 
-**Agents need feeds, not just memory.** Memory is for durable facts. Feeds are for fresh, incoming, timestamped state: project notes, RSS/news, GitHub issues and releases, calendars, weather, local dashboards, personal sources, or operator-approved command output.
+The primary audience for this repository is people building, operating, publishing, or auditing skill-based personal agents. The Python package and CLI are implementation details for the agent to drive.
 
-## Mac Personal Agent Quick Start
+## Why AgentFeeds
 
-For a Mac operator running a local personal agent such as Hermes or OpenClaw, the first useful setup is:
+Agents waste time and tokens rediscovering where context lives. They may scan skills, search the web, call the same APIs, or ask the user to repeat information that could already be waiting locally.
 
-```bash
-python3 scripts/setup.py
-python3 scripts/agentfeeds.py admin polling install
-python3 scripts/agentfeeds.py subscribe mac/calendar-today
-python3 scripts/agentfeeds.py subscribe mac/reminders-pending
-python3 scripts/agentfeeds.py subscribe mac/mail-unread
-python3 scripts/agentfeeds.py streams health
-```
+AgentFeeds moves that work into background refresh plus an agent-facing read path:
 
-macOS may ask for Calendar, Reminders, Automation, or Full Disk Access permissions the first time matching streams refresh. After that, background polling keeps the local state warm so your agent can answer questions like:
+- Faster answers: subscribed context is already refreshed and ready to read.
+- Less repeated discovery: agents can search local streams before exploring skills or external sources.
+- Cleaner memory: volatile state stays in feeds instead of long-term memory.
+- Local and inspectable: stream state lives under `~/.agentfeeds/` and can be audited.
+- Agent-facing UX: users prompt their agent; agents run the scripts.
+
+## Agent Context Model
+
+| Layer | Best for | Not for |
+| --- | --- | --- |
+| Memory | Durable facts, preferences, stable conventions | Today's inbox, latest issues, weather, dashboards |
+| Skills | Teaching the agent how to do a workflow | Storing changing source data |
+| Tools | One-off actions and live calls | Repeatedly rediscovering the same context |
+| AgentFeeds | Fresh, changing, ready-to-read context cache | Durable identity or preferences |
+
+Agents need feeds, not just memory. Memory remembers stable facts. AgentFeeds keeps fresh context available.
+
+## Try It With Your Agent
+
+After installing the skill, you should not need to operate AgentFeeds directly. Ask your agent for outcomes in natural language:
 
 ```text
-What is on my calendar today?
+Set up AgentFeeds with useful safe default streams for this agent.
 ```
 
 ```text
-What reminders are still open?
+What fresh context does AgentFeeds already have available?
 ```
 
 ```text
-Anything recent in my inbox I should notice?
+Use AgentFeeds first. What should I pay attention to today?
 ```
+
+```text
+Subscribe AgentFeeds to my calendar, reminders, unread mail, GitHub activity, and a few AI news sources.
+```
+
+```text
+Before searching the web, check AgentFeeds for relevant cached context.
+```
+
+The agent should handle template discovery, subscription setup, refreshes, health checks, and compact state reads through the bundled scripts. You should not need to know template IDs, subscription IDs, or CLI flags unless you ask for them.
+
+## Example: First Stop For Fresh Context
+
+Without AgentFeeds, a user asks:
+
+```text
+What should I pay attention to today?
+```
+
+The agent has to decide whether to inspect calendar tools, reminder tools, mail tools, GitHub tools, local dashboards, RSS feeds, or the web.
+
+With AgentFeeds, the agent first checks the local stream brief/search/read path, then answers from already-refreshed context with source names and freshness. If a stream is missing, stale, or failing, the agent can say so and refresh or reconfigure only when needed.
 
 ## Quick Demo
 
-![Agent Feeds interactive session demo](assets/agentfeeds-demo.gif)
-
-After installing the skill, ask your agent:
-
-```text
-What Agent Feeds templates can I subscribe to?
-```
-
-```text
-Subscribe me to today's Calendar.app agenda.
-```
-
-```text
-Show me today's calendar from Agent Feeds.
-```
-
-```text
-Subscribe my project notes at ~/notes/project.md as Project notes.
-```
-
-```text
-Refresh Project notes and summarize it.
-```
-
-The agent should handle template discovery, subscription setup, refreshes, and compact state reads through the bundled scripts. You should not need to know template IDs, subscription IDs, or CLI flags unless you ask for them.
+![AgentFeeds interactive session demo](assets/agentfeeds-demo.gif)
 
 ## Install The Skill
 
@@ -84,6 +94,8 @@ The unpacked skill folder contains:
 - `catalog/`: frozen built-in template catalog fallback
 - `references/`: setup, template authoring, background refresh, and publishing notes loaded only when needed
 - `assets/`: demo and skill assets
+
+### For Agent Hosts And Debugging
 
 From the skill root, run setup once:
 
@@ -116,7 +128,7 @@ The default brief is intentionally compact and stable for prompt caching. It lis
 
 ## What The Skill Enables
 
-Agent Feeds gives the agent a small local control surface:
+AgentFeeds gives the agent a small local control surface:
 
 - `python3 scripts/agentfeeds.py templates find/show ...` discovers reusable feed definitions
 - `python3 scripts/agentfeeds.py subscribe ...` creates active subscriptions
@@ -142,7 +154,7 @@ For example, `news/rss-generic` is a template, `news/openai-com` can be a subscr
 Ask your agent for outcomes in natural language:
 
 ```text
-What Agent Feeds templates can I subscribe to?
+What AgentFeeds templates can I subscribe to?
 ```
 
 ```text
@@ -154,7 +166,7 @@ Refresh OpenAI News and tell me what changed.
 ```
 
 ```text
-Can Agent Feeds subscribe to my SQLite task database? If not, draft a template.
+Can AgentFeeds subscribe to my SQLite task database? If not, draft a template.
 ```
 
 The skill instructs the agent to:
@@ -252,7 +264,7 @@ The bundle intentionally includes only the skill surface, frozen catalog snapsho
 
 ## Distribution Model
 
-Agent Feeds ships as one canonical skill with optional host-specific shells around it.
+AgentFeeds ships as one canonical skill with optional host-specific shells around it.
 
 - The canonical skill bundle is the source of truth: `SKILL.md`, `agents/`, `references/`, `scripts/`, `assets/`, `catalog/`, `LICENSE`, and `pyproject.toml`.
 - Host-specific bundles may vendor the canonical skill unmodified and add only host glue: manifests, hooks, installers, command wrappers, prompt-slot wiring, or one-click package formats.
@@ -264,23 +276,23 @@ If a behavior is useful in every agent, keep it in this repo's `SKILL.md` or ref
 
 ### Why not just use agent memory?
 
-Memory is for durable facts that should survive across sessions. Agent Feeds is for fresh state that changes over time: feed items, repo issues, calendars, weather, dashboards, project notes, or command snapshots. The state is timestamped and refreshable instead of being mixed into chat history.
+Memory is for durable facts that should survive across sessions. AgentFeeds is for fresh state that changes over time: feed items, repo issues, calendars, weather, dashboards, project notes, or command snapshots. The state is timestamped and refreshable instead of being mixed into chat history.
 
 ### Why not put everything in the prompt?
 
-Large prompts are expensive, noisy, and stale. Agent Feeds lets the agent discover available streams, then read detailed state only when the user asks something relevant.
+Large prompts are expensive, noisy, and stale. AgentFeeds lets the agent discover available streams, then read detailed state only when the user asks something relevant.
 
 ### Why not a vector database?
 
-Agent Feeds is not semantic recall. It is structured, inspectable current state. Subscriptions, template definitions, schemas, and JSON state are plain files under `~/.agentfeeds/` so operators can debug what the agent sees.
+AgentFeeds is not semantic recall. It is structured, inspectable current state. Subscriptions, template definitions, schemas, and JSON state are plain files under `~/.agentfeeds/` so operators can debug what the agent sees.
 
 ### Why not MCP?
 
-MCP is a tool interface. Agent Feeds is a local state substrate: background refresh, subscriptions, a compact catalog, and state files that agents can inspect across sessions. They can complement each other.
+MCP is a tool interface. AgentFeeds is a local state substrate: background refresh, subscriptions, a compact catalog, and state files that agents can inspect across sessions. They can complement each other.
 
 ### Is this an RSS reader?
 
-RSS is one template type. Agent Feeds also supports local files, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and operator-approved local commands. The product is the subscription/state layer for agents, not a human feed UI.
+RSS is one template type. AgentFeeds also supports local files, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and operator-approved local commands. The product is the subscription/state layer for agents, not a human feed UI.
 
 ## More Docs
 

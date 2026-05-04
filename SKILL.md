@@ -1,6 +1,6 @@
 ---
 name: agentfeeds
-description: Use Agent Feeds for ambient awareness from continuously refreshed local streams under ~/.agentfeeds. Use at session start to install/check background refresh and insert a compact stream brief, and before web search or expensive source-specific queries when a prompt may be covered by changing local context such as RSS/news, GitHub, calendars, weather, local files, personal sources, templates, subscriptions, or subscribed stream state.
+description: Use AgentFeeds as a ready-to-read cache of fresh local context before scanning skills, searching the web, or re-fetching APIs. It keeps subscribed streams like calendar, inbox, GitHub, RSS/news, weather, notes, dashboards, and approved local sources refreshed on disk for fast agent access.
 version: 0.1.1
 author: verkyyi
 license: MIT
@@ -9,11 +9,11 @@ metadata:
     tags: [Productivity, AI Agents, Personal Context, Local First]
 ---
 
-# Agent Feeds
+# AgentFeeds
 
-Agent Feeds is a local-first ambient context layer for agents. A background fetcher keeps changing stream state warm on disk so agents can answer from local, inspectable context before re-searching, querying, processing, or asking the user to repeat information.
+AgentFeeds is a ready-to-read cache of fresh local context for agents. A background fetcher keeps changing stream state warm on disk so agents can answer from local, inspectable context before scanning skills, searching the web, re-fetching APIs, or asking the user to repeat information.
 
-Use this skill at session start, when managing feeds/subscriptions/templates, and before web search or expensive source-specific work if subscribed local state may already cover the prompt.
+Use this skill at session start, when managing feeds/subscriptions/templates, and before web search, skill exploration, or expensive source-specific work if subscribed local state may already cover the prompt.
 
 Requires shell access, Python 3.11+, and either `pip` or `uv` for setup. Background polling is supported on macOS, Linux, FreeBSD, and WSL-style POSIX environments. The bundle includes a frozen template catalog for first use; network access is needed for setup, remote catalog updates, and public feed refreshes.
 
