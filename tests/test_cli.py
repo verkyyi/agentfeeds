@@ -199,8 +199,8 @@ def test_cli_brief_outputs_compact_stable_prompt_context(tmp_path, capsys):
 
     assert cli.main(["--root", str(root), "brief"]) == 0
     out = capsys.readouterr().out
-    assert out.startswith("<agentfeeds>\nAvailable local streams:")
-    assert "- local/project-notes-md: Project Notes.md" in out
+    assert out.startswith("<agentfeeds>\nAvailable local streams by group:")
+    assert "- local: project-notes-md" in out
     assert "Background refresh is expected" not in out
     assert "last_updated" not in out
     assert "updated=" not in out

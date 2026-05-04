@@ -856,6 +856,20 @@ def _brief_health_summary(health: dict) -> str | None:
     return "Ambient health: degraded (" + ", ".join(parts) + ")"
 
 
+def _brief_grouped_lines(entries: list[dict], include_freshness: bool) -> list[str]:
+    grouped: dict[str, list[str]] = {}
+    for entry in entries:
+        stream_id = entry["id"]
+        if "/" in stream_id:
+            group, name = stream_id.split("/", 1)
+        else:
+            group, name = "streams", stream_id
+        if include_freshness:
+            name += f" [{entry['freshness']}, updated={entry['last_updated'] or 'never'}]"
+        grouped.setdefault(group, []).append(name)
+    return [f"- {group}: {', '.join(names)}" for group, names in grouped.items()]
+
+
 def render_brief(entries: list[dict], truncated: bool, include_freshness: bool, health: dict | None = None) -> str:
     lines = ["<agentfeeds>"]
     if health:
@@ -863,12 +877,8 @@ def render_brief(entries: list[dict], truncated: bool, include_freshness: bool, 
         if health_line:
             lines.append(health_line)
     if entries:
-        lines.append("Available local streams:")
-        for entry in entries:
-            line = f"- {entry['id']}: {entry['title']}"
-            if include_freshness:
-                line += f" [{entry['freshness']}, updated={entry['last_updated'] or 'never'}]"
-            lines.append(line)
+        lines.append("Available local streams by group:")
+        lines.extend(_brief_grouped_lines(entries, include_freshness))
         if truncated:
             lines.append("- ...")
     else:

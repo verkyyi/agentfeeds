@@ -129,6 +129,8 @@ For macOS personal context, prefer the built-in `mac/*` templates from the bundl
 
 AppleScript-backed `apple_automation` templates can set `adapter.timeout_seconds` per stream. The mac templates were tuned after SSH/background timeouts: Calendar Today/Upcoming, Notes Recent, and Mail Unread use 120s; Reminders Pending uses 90s. The launchd polling interval is separate from this per-stream subprocess timeout. If editing built-in stream YAML directly, remember AgentFeeds runtime may read the cached catalog under `~/.agentfeeds/catalog-cache/catalog/streams/`; update or refresh that cache too before verifying active fetch behavior.
 
+GitHub private repo streams need the GitHub HTTP templates to use `adapter.auth_service: github` / `auth: bearer_token`; older cached `dev/github-issues` and `dev/github-prs` templates may be public-only (`auth: none`) and return 404 for private repos even when `gh` is logged in. Set `~/.agentfeeds/secrets/github_token.txt` mode 600 or use `admin secrets set github_token`, patch both skill catalog and runtime catalog cache, then refresh. JMESPath boolean literals in templates must be backtick literals (for example `draft: \`false\``); bare `false` becomes a field lookup and validates as null.
+
 ## Safety Rules
 
 - Use `subscribe` and `unsubscribe` for subscription changes.

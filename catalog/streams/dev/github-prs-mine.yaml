@@ -23,7 +23,7 @@ adapter:
         state: state,
         html_url: html_url,
         user: user.login,
-        draft: false,
+        draft: `false`,
         head_ref: null,
         base_ref: null,
         created_at: created_at,
