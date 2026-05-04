@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import platform
 import plistlib
+import re
 import sqlite3
 import subprocess
 from datetime import UTC, datetime, timedelta
@@ -19,7 +20,8 @@ def _require_macos(stream: dict) -> None:
 
 def _osascript(stream: dict, script: str) -> str:
     _require_macos(stream)
-    result = subprocess.run(["osascript", "-e", script], check=False, text=True, capture_output=True, timeout=30)
+    timeout_seconds = int(stream.get("adapter", {}).get("timeout_seconds") or 30)
+    result = subprocess.run(["osascript", "-e", script], check=False, text=True, capture_output=True, timeout=timeout_seconds)
     if result.returncode:
         raise RuntimeError(f"{stream['id']}: osascript failed: {result.stderr.strip()}")
     return result.stdout
@@ -27,10 +29,15 @@ def _osascript(stream: dict, script: str) -> str:
 
 def _rows(output: str, min_parts: int) -> list[list[str]]:
     rows = []
+    pending = ""
     for line in output.splitlines():
-        parts = line.split("\t")
+        candidate = f"{pending}\n{line}" if pending else line
+        parts = candidate.split("\t")
         if len(parts) >= min_parts:
             rows.append(parts)
+            pending = ""
+        else:
+            pending = candidate
     return rows
 
 
@@ -79,6 +86,14 @@ def fetch_apple_automation(stream: dict, adapter: dict, stream_uri: str) -> list
     events = []
     for row in rows:
         data = _row_data(columns, row, static)
+        if stream.get("id") == "mac/notes-recent":
+            for key in ("id", "title", "snippet", "modified_at"):
+                if key in data and data.get(key) is None:
+                    data[key] = ""
+        elif stream.get("id") == "mac/mail-unread":
+            for key in ("id", "subject", "sender", "received_at"):
+                if key in data and data.get(key) is None:
+                    data[key] = ""
         event_id = data.get(id_column) if id_column else None
         event_time = data.get(time_column) if time_column else None
         events.append(envelope(stream, stream_uri, event_id or stable_hash(data), data, event_time))
@@ -86,6 +101,11 @@ def fetch_apple_automation(stream: dict, adapter: dict, stream_uri: str) -> list
 
 
 def _mac_absolute_epoch(value: float) -> str:
+    if isinstance(value, datetime):
+        dt = value
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     dt = datetime(2001, 1, 1, tzinfo=UTC) + timedelta(seconds=float(value))
     return dt.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -133,6 +153,57 @@ def _convert_sqlite_row(adapter: dict, columns: list[object], row: tuple) -> dic
     return data
 
 
+def _decode_imessage_attributed_body(value: object) -> str:
+    if not isinstance(value, (bytes, bytearray)):
+        return ""
+    # Messages.app stores many SMS/RCS bodies as NSAttributedString streamtyped
+    # blobs, leaving message.text NULL. The readable string is usually embedded
+    # as UTF-8 alongside class/archive metadata. Extract candidate printable
+    # strings and ignore known archive/class markers.
+    ignored = {
+        "streamtyped",
+        "NSMutableAttributedString",
+        "NSAttributedString",
+        "NSObject",
+        "NSMutableString",
+        "NSString",
+        "NSDictionary",
+        "NSNumber",
+        "NSValue",
+        "NSMutableData",
+        "NSData",
+        "NSKeyedArchiver",
+    }
+    candidates = []
+    for match in re.finditer(rb"[\x09\x0a\x0d\x20-\x7e\xc2-\xf4]{4,}", bytes(value)):
+        text = match.group(0).decode("utf-8", errors="ignore")
+        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]+", "", text).strip()
+        if not text or text in ignored or text.startswith("__kIM"):
+            continue
+        candidates.append(text)
+    if not candidates:
+        return ""
+    # Prefer the longest human-readable candidate; archive metadata tends to be
+    # short or marker-like, while the message body is usually the longest string.
+    return max(candidates, key=len)
+
+
+def _normalize_imessage_row(data: dict) -> dict:
+    if data.get("display_name") is None:
+        data["display_name"] = ""
+    sender = str(data.get("sender") or "")
+    if not data.get("display_name"):
+        data["display_name"] = sender
+    snippet = data.get("snippet") or _decode_imessage_attributed_body(data.get("attributed_body"))
+    data["snippet"] = str(snippet or "")
+    data.pop("attributed_body", None)
+    if data.get("participants") is None:
+        data["participants"] = [sender] if sender else []
+    if data.get("unread_count") is None:
+        data["unread_count"] = 1
+    return data
+
+
 def fetch_sqlite_query(stream: dict, adapter: dict, stream_uri: str) -> list[dict]:
     if adapter.get("tcc_permission"):
         _require_macos(stream)
@@ -152,6 +223,10 @@ def fetch_sqlite_query(stream: dict, adapter: dict, stream_uri: str) -> list[dic
     events = []
     for row in rows:
         data = _convert_sqlite_row(adapter, columns, row)
+        if stream.get("id") == "mac/imessage-unread":
+            data = _normalize_imessage_row(data)
+        if id_column and data.get(id_column) is not None:
+            data[id_column] = str(data[id_column])
         event_id = data.get(id_column) if id_column else None
         event_time = data.get(time_column) if time_column else None
         events.append(envelope(stream, stream_uri, event_id or stable_hash(data), data, event_time))

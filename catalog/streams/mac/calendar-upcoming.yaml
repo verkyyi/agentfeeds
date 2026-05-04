@@ -9,6 +9,7 @@ parameters: []
 source_uri_template: "feed://mac.calendar/upcoming?days=7"
 adapter:
   kind: apple_automation
+  timeout_seconds: 120
   tcc_permission: Calendar
   script: |
     set startDate to current date

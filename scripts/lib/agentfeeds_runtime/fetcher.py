@@ -771,6 +771,8 @@ def state_payload(
         return {"_meta": meta, "data": events[0]["data"]}
 
     if stream["mode"] == "event":
+        if stream.get("event_retention") == "current":
+            return {"_meta": meta, "data": events[:history_limit]}
         old_events = existing.get("data", []) if existing else []
         merged = []
         seen = set()

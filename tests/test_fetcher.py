@@ -150,6 +150,45 @@ def test_event_state_merges_dedups_and_truncates(tmp_path):
     assert payload["data"][1]["data"]["value"] == 22
 
 
+def test_event_state_can_replace_current_events(tmp_path):
+    stream = {
+        "id": "mac/imessage-unread",
+        "title": "Unread iMessage conversations",
+        "type": "mac.imessage-thread",
+        "mode": "event",
+        "event_retention": "current",
+        "schema_url": "https://agentfeeds.dev/schemas/mac.imessage-thread.v1.json",
+        "schema_version": "1.0.0",
+    }
+    stream_uri = "feed://mac.imessage/unread?limit=25"
+    existing = {"_meta": {}, "data": [{"id": "stale", "data": {"thread_id": "stale"}}]}
+    events = [{"id": "current", "data": {"thread_id": "current"}}]
+
+    subscription = {"id": "mac/imessage-unread", "title": "Unread iMessage conversations", "template": "mac/imessage-unread"}
+    payload = fetcher.state_payload(subscription, stream, stream_uri, events, existing, 600, 50)
+
+    assert [event["id"] for event in payload["data"]] == ["current"]
+
+
+def test_imessage_unread_normalizes_attributed_body_snippet():
+    data = mac_native._normalize_imessage_row(
+        {
+            "thread_id": 4,
+            "display_name": None,
+            "sender": "87339",
+            "snippet": None,
+            "attributed_body": b"streamtyped\x00NSString\x01\x95\x84\x01+\x81\xbb\x00fresh: Deal text here",
+            "unread_count": 8,
+        }
+    )
+
+    assert data["display_name"] == "87339"
+    assert data["participants"] == ["87339"]
+    assert data["snippet"] == "fresh: Deal text here"
+    assert data["unread_count"] == 8
+    assert "attributed_body" not in data
+
+
 def test_local_file_fetch_writes_snapshot_state(tmp_path):
     source = tmp_path / "notes.md"
     source.write_text("# Notes\n\nLocal context.\n", encoding="utf-8")

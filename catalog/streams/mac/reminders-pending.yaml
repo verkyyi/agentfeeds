@@ -9,6 +9,7 @@ parameters: []
 source_uri_template: "feed://mac.reminders/pending"
 adapter:
   kind: apple_automation
+  timeout_seconds: 90
   tcc_permission: Reminders
   script: |
     set rows to {}

@@ -127,10 +127,12 @@ After scaffolding or installing a `local_command` template, tell the user to run
 
 For macOS personal context, prefer the built-in `mac/*` templates from the bundled catalog. They do not require local-command approval, but macOS may ask the user to grant Calendar, Reminders, Automation, or Full Disk Access permissions on first refresh.
 
+AppleScript-backed `apple_automation` templates can set `adapter.timeout_seconds` per stream. The mac templates were tuned after SSH/background timeouts: Calendar Today/Upcoming, Notes Recent, and Mail Unread use 120s; Reminders Pending uses 90s. The launchd polling interval is separate from this per-stream subprocess timeout. If editing built-in stream YAML directly, remember AgentFeeds runtime may read the cached catalog under `~/.agentfeeds/catalog-cache/catalog/streams/`; update or refresh that cache too before verifying active fetch behavior.
+
 ## Safety Rules
 
 - Use `subscribe` and `unsubscribe` for subscription changes.
 - Use `agentfeeds.py refresh` for refreshes.
 - Do not hand-write state or status files.
 - Do not include secret values in template YAML. Use `{{secret:name}}` references and tell the user to set values with `python3 scripts/agentfeeds.py admin secrets set <name>`.
-- Treat Agent Feeds as warm changing context, not durable memory, semantic search, or a data warehouse.
+- Treat AgentFeeds as warm changing context, not durable memory, semantic search, or a data warehouse.

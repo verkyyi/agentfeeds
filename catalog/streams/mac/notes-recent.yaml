@@ -9,6 +9,7 @@ parameters: []
 source_uri_template: "feed://mac.notes/recent?limit=20"
 adapter:
   kind: apple_automation
+  timeout_seconds: 120
   tcc_permission: Automation
   script: |
     set rows to {}
