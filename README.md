@@ -13,27 +13,13 @@ For a Mac operator running a local personal agent such as Hermes or OpenClaw, th
 ```bash
 python3 scripts/setup.py
 python3 scripts/agentfeeds.py admin polling install
-python3 scripts/agentfeeds.py admin macos install-templates
-```
-
-Approve only the local app sources you want the agent to read:
-
-```bash
-python3 scripts/agentfeeds.py admin templates approve-command macos/calendar-today
-python3 scripts/agentfeeds.py admin templates approve-command macos/reminders-open
-python3 scripts/agentfeeds.py admin templates approve-command macos/mail-inbox-recent
-```
-
-Subscribe the approved sources:
-
-```bash
-python3 scripts/agentfeeds.py subscribe macos/calendar-today --title "Calendar today"
-python3 scripts/agentfeeds.py subscribe macos/reminders-open --title "Open reminders"
-python3 scripts/agentfeeds.py subscribe macos/mail-inbox-recent --title "Recent inbox mail"
+python3 scripts/agentfeeds.py subscribe mac/calendar-today
+python3 scripts/agentfeeds.py subscribe mac/reminders-pending
+python3 scripts/agentfeeds.py subscribe mac/mail-unread
 python3 scripts/agentfeeds.py streams health
 ```
 
-macOS may ask for Automation or app-data permissions the first time the streams refresh. After that, background polling keeps the local state warm so your agent can answer questions like:
+macOS may ask for Calendar, Reminders, Automation, or Full Disk Access permissions the first time matching streams refresh. After that, background polling keeps the local state warm so your agent can answer questions like:
 
 ```text
 What is on my calendar today?
@@ -139,7 +125,6 @@ Agent Feeds gives the agent a small local control surface:
 - `python3 scripts/agentfeeds.py streams health ...` reports missing, stale, and failing streams
 - `python3 scripts/agentfeeds.py refresh ...` refreshes subscriptions
 - `python3 scripts/agentfeeds.py admin polling ...` keeps subscriptions warm in the background
-- `python3 scripts/agentfeeds.py admin macos install-templates` installs pending local templates for Calendar, Reminders, and Mail
 - `python3 scripts/agentfeeds.py brief` emits compact stable context for session-start prompt insertion
 
 Runtime state lives under `~/.agentfeeds/`, but agents should normally use the CLI instead of reading or writing storage files directly. The file layout remains inspectable for debugging and local template authoring.
@@ -198,28 +183,17 @@ Current built-in templates include:
 
 - `local/file`: read-only snapshot of one local text, Markdown, or JSON file
 - `news/rss-generic`: RSS or Atom feed
-- `dev/hackernews-frontpage`: Hacker News front page
 - `dev/github-releases`: GitHub repository releases
 - `dev/github-issues`: GitHub repository issues
 - `dev/github-prs`: GitHub repository pull requests
+- `mac/calendar-today`: today's local Calendar.app agenda
+- `mac/reminders-pending`: pending Reminders.app items
+- `mac/mail-unread`: unread Mail.app messages
+- `mac/notes-recent`: recently modified Notes.app notes
 - `calendar/ics`: public iCalendar feed
 - `weather/openmeteo-current`: current weather by latitude/longitude
 - `weather/openmeteo-forecast`: 7-day forecast by latitude/longitude
 - `finance/exchangerate`: current exchange rates
-- `geo/usgs-earthquakes-hour`: recent USGS earthquakes
-- `space/iss-location`: current ISS location
-
-macOS-local personal templates are installed separately because they use operator-approved local commands and app permissions:
-
-```bash
-python3 scripts/agentfeeds.py admin macos install-templates
-```
-
-This writes pending templates for Calendar, Reminders, and Mail. Approve only the templates you want enabled with:
-
-```bash
-python3 scripts/agentfeeds.py admin templates approve-command <template-id>
-```
 
 Catalog loading can be pointed at a local checkout or alternate raw source:
 

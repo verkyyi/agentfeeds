@@ -626,37 +626,6 @@ def test_cli_subscribe_update_keeps_subscription_id(tmp_path):
     ]
 
 
-def test_cli_installs_macos_native_templates(tmp_path, capsys):
-    assert cli.main(["--root", str(tmp_path), "admin", "macos", "install-templates", "--json"]) == 0
-
-    result = json.loads(capsys.readouterr().out)
-    assert len(result["written"]) == 3
-    assert result["next_actions"][0]["action"] == "approve_local_command"
-
-    assert cli.main(["--root", str(tmp_path), "admin", "templates", "validate"]) == 0
-    capsys.readouterr()
-    for template_id in ["macos/calendar-today", "macos/reminders-open", "macos/mail-inbox-recent"]:
-        stream = cli.fetch.load_stream_definition(tmp_path, template_id)
-        assert stream["pending"] is True
-        assert stream["adapter"]["kind"] == "local_command"
-        assert stream["adapter"]["command"][1].endswith(".py")
-
-    assert cli.main([
-        "--root",
-        str(tmp_path),
-        "subscribe",
-        "macos/calendar-today",
-        "--dry-run",
-        "--json",
-    ]) == 0
-    preview = json.loads(capsys.readouterr().out)
-    assert preview["next_actions"][0]["action"] == "approve_local_command"
-
-    assert cli.main(["--root", str(tmp_path), "subscribe", "macos/calendar-today", "--json"]) == 2
-    blocked = json.loads(capsys.readouterr().out)
-    assert blocked["error"] == "local_command template is pending operator approval"
-
-
 def test_cli_subscribe_reports_secret_next_action(tmp_path, capsys):
     streams_root = tmp_path / "templates" / "streams" / "dev"
     schemas_root = tmp_path / "templates" / "schemas" / "event-types"
