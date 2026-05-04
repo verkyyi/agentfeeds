@@ -44,11 +44,11 @@ What Agent Feeds templates can I subscribe to?
 ```
 
 ```text
-Subscribe me to Hacker News front page.
+Subscribe me to today's Calendar.app agenda.
 ```
 
 ```text
-Show me the current Hacker News front page from Agent Feeds.
+Show me today's calendar from Agent Feeds.
 ```
 
 ```text

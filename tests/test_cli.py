@@ -52,16 +52,16 @@ def test_cli_subscribe_streams_and_unsubscribe_without_fetch(tmp_path, capsys):
 
 
 def test_cli_templates_search_filters_catalog(tmp_path, capsys):
-    assert cli.main(["--root", str(tmp_path), "templates", "find", "hacker"]) == 0
+    assert cli.main(["--root", str(tmp_path), "templates", "find", "calendar"]) == 0
     out = capsys.readouterr().out
-    assert "dev/hackernews-frontpage" in out
+    assert "mac/calendar-today" in out
     assert "weather/openmeteo-current" not in out
 
 
 def test_cli_templates_show_catalog_entry(tmp_path, capsys):
-    assert cli.main(["--root", str(tmp_path), "templates", "find", "hacker"]) == 0
+    assert cli.main(["--root", str(tmp_path), "templates", "find", "calendar"]) == 0
     out = capsys.readouterr().out
-    assert "dev/hackernews-frontpage" in out
+    assert "mac/calendar-today" in out
 
     assert cli.main(["--root", str(tmp_path), "templates", "show", "local/file", "--json"]) == 0
     template = json.loads(capsys.readouterr().out)
@@ -95,16 +95,16 @@ def test_cli_keeps_no_parameter_template_identity(tmp_path):
         "--root",
         str(tmp_path),
         "subscribe",
-        "dev/hackernews-frontpage",
+        "mac/calendar-today",
         "--no-fetch",
     ]) == 0
 
     config = yaml.safe_load((tmp_path / "subscriptions.yaml").read_text(encoding="utf-8"))
     assert config["subscriptions"] == [
         {
-            "id": "dev/hackernews-frontpage",
-            "title": "Hacker News front page",
-            "template": "dev/hackernews-frontpage",
+            "id": "mac/calendar-today",
+            "title": "Today's Calendar.app agenda",
+            "template": "mac/calendar-today",
         }
     ]
 
@@ -112,7 +112,7 @@ def test_cli_keeps_no_parameter_template_identity(tmp_path):
         "--root",
         str(tmp_path),
         "subscribe",
-        "dev/hackernews-frontpage",
+        "mac/calendar-today",
         "--no-fetch",
     ]) == 2
 
@@ -250,19 +250,19 @@ def test_cli_search_finds_snapshot_state_content(tmp_path, capsys):
 def test_cli_search_finds_event_state_content_across_fields(tmp_path, capsys):
     root = tmp_path / "agentfeeds"
 
-    assert cli.main(["--root", str(root), "subscribe", "dev/hackernews-frontpage", "--no-fetch"]) == 0
+    assert cli.main(["--root", str(root), "subscribe", "mac/calendar-today", "--no-fetch"]) == 0
     capsys.readouterr()
 
-    stream = cli.fetch.load_stream_definition(root, "dev/hackernews-frontpage")
+    stream = cli.fetch.load_stream_definition(root, "mac/calendar-today")
     state_path = cli.fetch.state_path_for_stream(cli.fetch.source_uri_for(stream, {}), root)
     state_path.parent.mkdir(parents=True)
     state_path.write_text(
         json.dumps(
             {
                 "_meta": {
-                    "subscription_id": "dev/hackernews-frontpage",
-                    "template_id": "dev/hackernews-frontpage",
-                    "title": "Hacker News front page",
+                    "subscription_id": "mac/calendar-today",
+                    "template_id": "mac/calendar-today",
+                    "title": "Today's Calendar.app agenda",
                     "last_updated": "2026-05-03T12:00:00Z",
                     "next_poll_due": "2026-05-03T12:05:00Z",
                     "mode": "event",
@@ -294,7 +294,7 @@ def test_cli_search_finds_event_state_content_across_fields(tmp_path, capsys):
     assert result["terms"] == ["alice", "launch"]
     assert result["total_matches"] == 1
     match = result["matches"][0]
-    assert match["subscription_id"] == "dev/hackernews-frontpage"
+    assert match["subscription_id"] == "mac/calendar-today"
     assert match["item_kind"] == "event"
     assert match["item_id"] == "one"
     assert match["path"] == "data"

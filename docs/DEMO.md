@@ -1,6 +1,6 @@
 # Agent Feeds Demo
 
-This is the short launch demo for Agent Feeds v0.1.0.
+This is the short launch demo for Agent Feeds v0.1.1.
 
 ## Narrative
 
@@ -10,11 +10,12 @@ A new agent session can inspect compact Agent Feeds metadata through the CLI:
 
 ```text
 python3 scripts/agentfeeds.py streams list
+- mac/calendar-today: Today's Calendar.app agenda
+- mac/reminders-pending: Pending Reminders.app items
+- mac/mail-unread: Unread Mail.app messages
+- local/project-notes-md: Project notes
+- dev/my-open-prs: My GitHub pull requests
 - weather/santa-clara-current: Santa Clara current weather
-- dev/hackernews-frontpage: Hacker News front page
-- finance/quote-btc: BTC quote
-- news/openai-com: OpenAI News
-- ops/gateway-health: Gateway health
 ```
 
 The user then asks normal questions. The agent decides when to run `python3 scripts/agentfeeds.py streams read <subscription-id> --json` before using web search.
@@ -27,37 +28,37 @@ The user then asks normal questions. The agent decides when to run `python3 scri
 
 The agent starts with compact stream metadata, not bulky state data.
 
-### 2. Current news
+### 2. Calendar awareness
 
 ```text
-What is on Hacker News right now?
+What is on my calendar today?
 ```
 
-The agent sees `dev/hackernews-frontpage`, reads it through `python3 scripts/agentfeeds.py streams read`, and answers from the fresh snapshot before web search.
+The agent sees `mac/calendar-today`, reads it through `python3 scripts/agentfeeds.py streams read`, and answers from local state before using any external calendar tool.
 
-### 3. Personal ops awareness
+### 3. Personal task awareness
 
 ```text
-Is my gateway healthy?
+What reminders are still open?
 ```
 
-The agent sees `ops/gateway-health`, reads it through `python3 scripts/agentfeeds.py streams read`, and reports the current status.
+The agent sees `mac/reminders-pending`, reads it through `python3 scripts/agentfeeds.py streams read`, and summarizes current reminders without asking the user to restate them.
 
-### 4. Market and weather snapshots
+### 4. Local project context
 
 ```text
-What are BTC and MSFT doing, and what is Santa Clara weather?
+Refresh Project notes and summarize it.
 ```
 
-The agent sees the quote and weather streams, reads the relevant snapshots, and summarizes them together.
+The agent refreshes `local/project-notes-md`, reads the refreshed snapshot, and answers from the user's local file.
 
-### 5. Followed AI sources
+### 5. Public and developer sources
 
 ```text
-Anything new from OpenAI, Anthropic, or my watched agent releases?
+Anything new from my watched releases, open PRs, or Santa Clara weather?
 ```
 
-The agent sees active RSS/release streams, reads their local event files, and reports what changed.
+The agent sees active GitHub, RSS, and weather streams, reads only the matching local state files, and reports what changed.
 
 ## Talking points
 
@@ -69,4 +70,4 @@ The agent sees active RSS/release streams, reads their local event files, and re
 
 ## Suggested voiceover
 
-> Agent Feeds is most useful inside an agent session. The agent can inspect a compact list of local streams — weather, Hacker News, market quotes, OpenAI news, gateway health — without loading all the raw data. When I ask a normal question, it notices the relevant stream, reads it through the Agent Feeds CLI, and answers from fresh inspectable context before using web search.
+> Agent Feeds is most useful inside an agent session. The agent can inspect a compact list of local streams - calendar, reminders, unread mail, project notes, GitHub, RSS, and weather - without loading all the raw data. When I ask a normal question, it notices the relevant stream, reads it through the Agent Feeds CLI, and answers from fresh inspectable context before using web search.

@@ -33,9 +33,6 @@ agentfeeds/
 │   ├── setup.py                     # install/check local runtime env
 │   ├── agentfeeds.py                # management wrapper for agents
 │   ├── agentfeeds_fetch.py          # refresh worker wrapper
-│   ├── polling/
-│   │   ├── install.py               # optional cron/launchd installer
-│   │   └── uninstall.py             # optional cron/launchd uninstaller
 │   └── lib/
 │       └── agentfeeds_runtime/      # Python runtime package
 │           ├── commands.py
@@ -163,16 +160,16 @@ Given stream URI `feed://<host>/<path>[?<query>]`:
 1. Strip the `feed://` scheme.
 1. The host becomes the first directory under `state/`.
 1. Path segments join with `.` (dot). Leading slashes dropped.
-1. If query present: append `.` then query string with `&` replaced by `,`.
+1. If query present: append a sanitized query component plus a short hash suffix.
 1. Append `.json`.
 
 Examples:
 
 - `feed://weather.gov/forecast?lat=37.33&lon=-121.89` → `state/weather.gov/forecast.lat-37.33-lon--121.89.<hash>.json`
 - `feed://github.com/repos/anthropics/claude-code/releases` → `state/github.com/repos.anthropics.claude-code.releases.json`
-- `feed://earthquake.usgs.gov/all/hour` → `state/earthquake.usgs.gov/all.hour.json`
+- `feed://mac.calendar/today` → `state/mac.calendar/today.json`
 
-This rule is reversible. Any conformant implementation produces the same path.
+This rule is deterministic. Query strings and local paths are sanitized so `/`, `:`, `?`, `=`, `#`, and other unsafe filename characters cannot create nested paths.
 
 ### 4.2 Atomic writes
 
@@ -213,7 +210,7 @@ The session-start prompt surface is `python3 scripts/agentfeeds.py brief`. Its d
 <agentfeeds>
 Available local streams:
 - local/project-notes-md: Project notes
-- dev/hackernews-frontpage: Hacker News front page
+- mac/calendar-today: Today's Calendar.app agenda
 </agentfeeds>
 ```
 
@@ -274,11 +271,11 @@ subscriptions:
       owner: anthropics
       repo: claude-code
     poll_interval_seconds: 3600
-  - id: geo/usgs-earthquakes-hour
-    title: USGS earthquakes in the past hour
-    template: geo/usgs-earthquakes-hour
+  - id: mac/reminders-pending
+    title: Pending Reminders.app items
+    template: mac/reminders-pending
     filter:
-      data.magnitude: { gte: 4.0 }
+      data.completed: { eq: false }
 ```
 
 The fetcher resolves each subscription's `template` field against the catalog cache to get the full stream definition. `id` is the concrete active subscription identity that agents see. Templates are used for discovery and subscription; only active subscription instances are injected into prompts.
@@ -387,19 +384,26 @@ Adapter `url`, `headers`, `body`, and `transform` strings support `{param_name}`
 
 -----
 
-## 8. The Fetcher (`python3 scripts/agentfeeds_fetch.py`)
+## 8. The Fetcher
 
-A Python 3.11+ script. Single file preferred for v0.3. ~300 lines target.
+The fetcher is the runtime refresh worker. Agents normally reach it through `python3 scripts/agentfeeds.py refresh`; `python3 scripts/agentfeeds_fetch.py` and the installed `agentfeeds-fetch` entrypoint are internal surfaces for polling and scripts.
 
 ### 8.1 Invocation modes
 
+Agent-facing refresh commands:
+
+```bash
+python3 scripts/agentfeeds.py refresh                      # refresh stale subscriptions
+python3 scripts/agentfeeds.py refresh --all                # refresh every subscription regardless of staleness
+python3 scripts/agentfeeds.py refresh --stream <id>        # refresh one specific subscription id
 ```
-python3 scripts/agentfeeds_fetch.py                        # default: refresh stale subscriptions
-python3 scripts/agentfeeds_fetch.py --all                  # refresh every subscription regardless of staleness
-python3 scripts/agentfeeds_fetch.py --stream <id>          # refresh one specific subscription id
-python3 scripts/agentfeeds_fetch.py --once <id>            # one-shot fetch, used by `subscribe` recipe for eager first-fetch
-python3 scripts/agentfeeds_fetch.py --regenerate-catalog   # regenerate ~/.agentfeeds/catalog.md without polling
-python3 scripts/agentfeeds_fetch.py --update-catalog       # refresh ~/.agentfeeds/catalog-cache/ from public catalog
+
+Internal worker commands:
+
+```bash
+python3 scripts/agentfeeds_fetch.py --all
+python3 scripts/agentfeeds_fetch.py --stream <id>
+python3 scripts/agentfeeds_fetch.py --update-catalog
 ```
 
 ### 8.2 Behavior
@@ -435,9 +439,9 @@ The fetcher is a one-shot script. Polling is achieved by cron/launchd invoking i
 
 ## 9. Agent Integrations
 
-The primary user experience is agent-orchestrated. The user asks for outcomes in natural language; the agent uses `python3 scripts/agentfeeds.py` and `python3 scripts/agentfeeds_fetch.py` as an internal control plane, then reports results. The CLI exists for agents, scripts, and debugging, not as the normal operator workflow.
+The primary user experience is agent-orchestrated. The user asks for outcomes in natural language; the agent uses `python3 scripts/agentfeeds.py` as its control plane, then reports results. The CLI exists for agents, scripts, and debugging, not as the normal operator workflow.
 
-The Hermes plugin and skill live in the standalone `agentfeeds-hermes-plugin` repository. Built-in template definitions live in `agentfeeds-catalog`. This core repo owns the protocol, CLI, fetcher, local template tooling, and tests.
+The canonical skill lives in this repo. Host-specific bundles, such as the standalone Hermes plugin, vendor the canonical skill unchanged and add only host-specific manifests, hooks, and installers. Built-in template definitions live in `agentfeeds-catalog`; this core repo owns the protocol, CLI, fetcher, local template tooling, and tests.
 
 ### 9.1 Skill Instructions
 
@@ -513,29 +517,21 @@ If the scheduler is unsupported or unavailable, the system can still refresh exp
 
 -----
 
-## 11. Starter Catalog (build these first)
+## 11. Built-In Catalog Snapshot
 
-Ship at least these stream definitions in v0.3. Each must have working adapter config and require no auth:
+The built-in catalog ships as a frozen fallback in the skill bundle and can be refreshed from the catalog repo. It currently focuses on personal-agent sources:
 
-1. `weather/openmeteo-current` — Open-Meteo current conditions (params: lat, lon)
-1. `weather/openmeteo-forecast` — Open-Meteo 7-day forecast (params: lat, lon)
-1. `geo/usgs-earthquakes-hour` — USGS earthquakes past hour (no params)
-1. `dev/github-releases` — GitHub repo releases (params: owner, repo)
-1. `dev/github-issues` — GitHub repo issues (params: owner, repo, state)
-1. `dev/github-prs` — GitHub repo pull requests (params: owner, repo, state)
-1. `dev/hackernews-frontpage` — Hacker News front page via Algolia or Firebase API (no params)
-1. `space/iss-location` — Current ISS lat/lon (no params)
-1. `news/rss-generic` — Wraps any RSS URL (params: url)
-1. `finance/exchangerate` — exchangerate.host current rates (params: base)
-1. `local/file` — Read-only snapshot of a local text/Markdown/JSON file (params: path)
-1. `calendar/ics` — Public iCalendar feed (params: url)
+1. macOS personal sources: Calendar, Reminders, Notes, Mail, Messages, Safari Reading List, and Finder downloads.
+1. Local workspace sources: files, recent directories, Markdown vaults, and Git status.
+1. Developer sources: GitHub issues, pull requests, releases, notifications, Linear, and Todoist.
+1. Knowledge and public sources: RSS/Atom, ICS calendars, Notion, weather, and exchange rates.
 
 Each must:
 
 - Have a valid YAML definition under `agentfeeds-catalog/catalog/streams/`.
 - Have a JSON Schema under `agentfeeds-catalog/catalog/schemas/event-types/`.
 - Pass the catalog repo's `scripts/validate-stream.py`.
-- Be tested by `tests/test_adapters.py` against a recorded fixture.
+- Be covered either by runtime unit tests or by catalog validation tests with representative fixtures.
 
 -----
 
@@ -558,23 +554,17 @@ Each must:
 
 -----
 
-## 13. Implementation Order
+## 13. Maintenance Order
 
-Build in this order. Each step depends on the previous one being functional.
+Maintain changes in this order so launch artifacts stay coherent:
 
-1. **Schemas** — `envelope.v0.3.json`, `stream-definition.v0.3.json`. Establishes the contracts.
-1. **Fetcher core** — load subscriptions, run a single hardcoded `json_http` adapter against Open-Meteo, write a state file. End-to-end skeleton.
-1. **Adapter kinds** — generalize the fetcher to support all four adapter kinds.
-1. **State merging** — implement snapshot, event, and delta merge logic with tests.
-1. **Catalog regeneration** — generate `~/.agentfeeds/catalog.md` as an inspection/fallback artifact.
-1. **Starter catalog** — write the 8 stream definitions and their schemas in `agentfeeds-catalog`, with fixtures.
-1. **Agent integration instructions** — write/update standalone plugin skills and recipes.
-1. **Polling installer** — optional cron/launchd setup.
-1. **Tests** — fill in coverage to the level described in §12.
-1. **Documentation** — README, contribution guide.
-1. **Self-dogfooding** — install on Hermes, subscribe to 5 streams, use for a week.
+1. **Runtime contract first** — schema, storage, auth, and adapter primitive changes land in core with tests.
+1. **Catalog second** — template YAML uses only generic runtime primitives and validates against the current schemas.
+1. **Skill instructions third** — `SKILL.md` and references teach the stable agent workflow, not storage internals.
+1. **Host bundles last** — Hermes, OpenClaw, or other host packages vendor the canonical skill bundle without editing it.
+1. **Demo and release assets** — rebuild after the runtime, catalog, and skill text agree.
 
-Steps 1-6 are the critical path. 7-11 polish what’s already working.
+Core and catalog should stay one-way: catalog depends on the runtime contract, while the runtime does not depend on source-specific catalog templates.
 
 -----
 
@@ -582,7 +572,7 @@ Steps 1-6 are the critical path. 7-11 polish what’s already working.
 
 Do not implement these. They are future work and including them now bloats the project:
 
-- Authentication for streams that require API keys (paid streams).
+- Hosted OAuth/browser authentication flows.
 - Filter expression languages beyond the simple operators in subscriptions.
 - HTML scraping adapter.
 - Webhook receiver adapter.
@@ -600,7 +590,7 @@ Do not implement these. They are future work and including them now bloats the p
 
 You’re done when all of these are true:
 
-- [ ] `python3 scripts/agentfeeds_fetch.py` polls the 8 starter streams and writes valid state files.
+- [ ] `python3 scripts/agentfeeds.py refresh --all` polls representative built-in streams and writes valid state files.
 - [ ] `python3 scripts/agentfeeds.py streams list/read` and `python3 scripts/agentfeeds.py admin streams show` reflect refreshed state after each fetch.
 - [ ] The bundle’s `SKILL.md` + recipes work in a compatible agent: subscribe, unsubscribe, refresh, and template search all complete without error.
 - [ ] At least one full end-to-end demo works: cold install → `subscribe me to weather in San Jose` → stream data exists → user asks “what’s the weather?” → agent reads via `python3 scripts/agentfeeds.py streams read` (no web search) → correct answer.
@@ -622,7 +612,7 @@ When in doubt:
 - **Atomic writes always.** Every state file write is `tmp + fsync + rename`.
 - **One adapter kind at a time.** Get `json_http` working end-to-end before starting `rss`.
 - **The streams CLI is the agent’s primary view.** If it does not reflect refreshed state after a fetch, that’s a P0 bug.
-- **Lazy by default.** Don’t add background daemons. Cron is the only acceptable polling mechanism.
+- **Warm by default.** Background refresh is required for normal use; launchd/cron are the supported scheduler mechanisms.
 
 When you finish a step in §13, commit. Small commits, message format: `step N: <what>`.
 

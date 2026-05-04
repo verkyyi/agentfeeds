@@ -26,10 +26,7 @@ EXCLUDE_PARTS = {
     "evals",
 }
 EXCLUDE_NAMES = {
-    "geo.earthquake.v1.json",
-    "hn.story.v1.json",
     "publishing.md",
-    "space.iss-location.v1.json",
 }
 EXCLUDE_SUFFIXES = {
     ".pyc",

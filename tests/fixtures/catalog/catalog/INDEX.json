@@ -71,21 +71,22 @@
     },
     {
       "auth": "none",
-      "description": "Current Hacker News front page stories via the Algolia API.",
-      "id": "dev/hackernews-frontpage",
+      "description": "Today's agenda from every calendar configured in Calendar.app.",
+      "id": "mac/calendar-today",
       "mode": "event",
       "parameters": [],
-      "path": "catalog/streams/dev/hackernews-frontpage.yaml",
-      "quality_tier": "verified",
+      "path": "catalog/streams/mac/calendar-today.yaml",
+      "quality_tier": "experimental",
       "tags": [
-        "dev",
-        "news",
-        "hackernews",
-        "free",
+        "mac",
+        "calendar",
+        "agenda",
+        "eventkit",
+        "tcc",
         "no-auth"
       ],
-      "title": "Hacker News front page",
-      "type": "hn.story"
+      "title": "Today's Calendar.app agenda",
+      "type": "ical.event"
     },
     {
       "auth": "none",

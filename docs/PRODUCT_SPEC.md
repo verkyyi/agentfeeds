@@ -138,10 +138,10 @@ An adapter is the fetch mechanism behind a template. Core adapter types are gene
 User asks:
 
 ```text
-What is on Hacker News right now?
+What is on my calendar today?
 ```
 
-The agent checks active Agent Feeds streams, sees a fresh Hacker News subscription, reads the stream through the CLI, and answers without web search.
+The agent checks active Agent Feeds streams, sees a fresh Calendar.app subscription, reads the stream through the CLI, and answers without re-querying the calendar pipeline.
 
 Benefit:
 
@@ -225,7 +225,7 @@ The plugin injects compact metadata:
 ```text
 Available local streams:
 - local/project-notes-md: Project notes
-- dev/hackernews-frontpage: Hacker News front page
+- mac/calendar-today: Today's Calendar.app agenda
 ```
 
 The agent now knows what local context exists without loading every state file.
@@ -245,7 +245,7 @@ What Agent Feeds templates can I subscribe to?
 ```
 
 ```text
-Subscribe me to Hacker News front page.
+Subscribe me to today's Calendar.app agenda.
 ```
 
 ```text
@@ -361,7 +361,7 @@ Available today:
 - compact catalog injection
 - state files as JSON
 - background fetcher
-- built-in templates for local files, RSS, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, USGS earthquakes, and ISS location
+- built-in templates for macOS personal sources, local files/directories/Markdown/Git state, RSS, GitHub releases/issues/PRs/notifications, ICS calendars, weather, exchange rates, Todoist, Linear, and Notion
 - local template authoring
 - local command adapter for snapshots and JSON-derived event streams
 - template dry-run testing

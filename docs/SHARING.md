@@ -16,7 +16,7 @@ I have been building Agent Feeds, a local-first subscription layer for personal 
 
 The idea is simple: personal agents need fresh awareness of local and private state, but that state should not be dumped into every prompt. Agent Feeds keeps detailed data on disk, exposes compact stream metadata, and lets the agent read relevant streams through the CLI only when needed.
 
-Current templates include local files, RSS/Atom, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and argv-only local commands. Some templates are ready to subscribe as-is; others take parameters. Local commands can produce either a current snapshot or JSON-derived events.
+Current templates include macOS Calendar, Reminders, Mail, Messages, Notes, Safari, and Finder sources; local files, directories, Markdown vaults, and Git status; RSS/Atom, GitHub releases/issues/PRs/notifications, ICS calendars, weather, exchange rates, Todoist, Linear, Notion, and operator-approved local commands. Some templates are ready to subscribe as-is; others take parameters.
 
 Repo: https://github.com/verkyyi/agentfeeds
 
@@ -36,11 +36,11 @@ What Agent Feeds templates can I subscribe to?
 ```
 
 ```text
-Subscribe me to Hacker News front page.
+Subscribe me to today's Calendar.app agenda.
 ```
 
 ```text
-Show me the current Hacker News front page from Agent Feeds.
+Show me today's calendar from Agent Feeds.
 ```
 
 ```text
@@ -54,10 +54,10 @@ Refresh Project notes and summarize it.
 Direct CLI inspection:
 
 ```bash
-python3 scripts/agentfeeds.py templates find hacker
-python3 scripts/agentfeeds.py subscribe dev/hackernews-frontpage
+python3 scripts/agentfeeds.py templates find calendar
+python3 scripts/agentfeeds.py subscribe mac/calendar-today
 python3 scripts/agentfeeds.py streams list
-python3 scripts/agentfeeds.py streams read dev/hackernews-frontpage --json
+python3 scripts/agentfeeds.py streams read mac/calendar-today --json
 ```
 
 Template authoring smoke test:
@@ -75,7 +75,7 @@ python3 scripts/agentfeeds.py admin templates test personal/status --json
 Title:
 
 ```text
-Agent Feeds v0.1.0: Local ambient context for personal agents
+Agent Feeds v0.1.1: Local ambient context for personal agents
 ```
 
 Body:
@@ -89,7 +89,7 @@ This first release focuses on personal agents, with a standalone Hermes plugin a
 - local subscriptions under ~/.agentfeeds
 - compact catalog injection
 - background fetcher with launchd/cron installer
-- built-in templates for local files, RSS, Hacker News, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, earthquakes, and ISS location
+- built-in templates for macOS personal sources, local files/directories/Markdown/Git state, RSS, GitHub releases/issues/PRs/notifications, ICS calendars, weather, exchange rates, Todoist, Linear, and Notion
 - local template authoring tools
 - approved argv-only local_command adapter for snapshots and JSON-derived event streams
 - template dry-run testing with python3 scripts/agentfeeds.py admin templates test
