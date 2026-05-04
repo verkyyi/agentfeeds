@@ -1,7 +1,7 @@
 ---
 name: agentfeeds
 description: Use AgentFeeds as a ready-to-read cache of fresh local context before scanning skills, searching the web, or re-fetching APIs. It keeps subscribed streams like calendar, inbox, GitHub, RSS/news, weather, notes, dashboards, and approved local sources refreshed on disk for fast agent access.
-version: 0.1.1
+version: 0.1.2
 author: verkyyi
 license: MIT
 metadata:
