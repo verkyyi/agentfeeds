@@ -7,8 +7,27 @@
   "properties": {
     "generated_at": { "type": "string" },
     "daily": {
-      "type": "array",
-      "items": { "type": "object" }
+      "type": "object",
+      "required": ["time", "temperature_2m_max", "temperature_2m_min", "weather_code"],
+      "properties": {
+        "time": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "temperature_2m_max": {
+          "type": "array",
+          "items": { "type": "number" }
+        },
+        "temperature_2m_min": {
+          "type": "array",
+          "items": { "type": "number" }
+        },
+        "weather_code": {
+          "type": "array",
+          "items": { "type": "number" }
+        }
+      },
+      "additionalProperties": true
     }
   }
 }
