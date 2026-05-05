@@ -844,16 +844,18 @@ def _brief_entries(root: Path, max_streams: int, include_freshness: bool) -> tup
     return entries, len(rows) > max_streams
 
 
-def _brief_health_summary(health: dict) -> str | None:
+def _brief_health_summary(health: dict) -> str:
     summary = health["summary"]
     degraded = summary["stale"] or summary["missing"] or summary["error"]
     if not degraded:
-        return None
+        return "Fresh local context. Health: ok."
     parts = []
     for key in ("stale", "missing", "error"):
-        if summary[key]:
-            parts.append(f"{summary[key]} {key}")
-    return "Ambient health: degraded (" + ", ".join(parts) + ")"
+        count = summary[key]
+        if count:
+            label = "source" if count == 1 else "sources"
+            parts.append(f"{count} {label} {key}")
+    return "Fresh local context. Health: degraded (" + ", ".join(parts) + ")."
 
 
 def _brief_grouped_lines(entries: list[dict], include_freshness: bool) -> list[str]:
@@ -873,11 +875,11 @@ def _brief_grouped_lines(entries: list[dict], include_freshness: bool) -> list[s
 def render_brief(entries: list[dict], truncated: bool, include_freshness: bool, health: dict | None = None) -> str:
     lines = ["<agentfeeds>"]
     if health:
-        health_line = _brief_health_summary(health)
-        if health_line:
-            lines.append(health_line)
+        lines.append(_brief_health_summary(health))
+    else:
+        lines.append("Fresh local context.")
     if entries:
-        lines.append("Available local streams by group:")
+        lines.append("Prefer relevant streams before web/API calls or asking again.")
         lines.extend(_brief_grouped_lines(entries, include_freshness))
         if truncated:
             lines.append("- ...")
