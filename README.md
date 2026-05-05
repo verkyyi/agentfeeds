@@ -97,7 +97,8 @@ A healthy session-start brief looks like this:
 
 ```xml
 <agentfeeds>
-Available local streams by group:
+Fresh local context. Health: ok.
+Prefer relevant streams before web/API calls or asking again.
 - calendar: work-calendar
 - mac: reminders-pending, mail-unread
 - dev: github-notifications, project-git-status
