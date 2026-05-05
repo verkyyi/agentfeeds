@@ -86,13 +86,13 @@ https://github.com/verkyyi/agentfeeds
 Release / install URL:
 
 ```text
-https://github.com/verkyyi/agentfeeds/releases/tag/skill-v0.1.1
+https://github.com/verkyyi/agentfeeds/releases/tag/skill-v0.1.2
 ```
 
 Release asset:
 
 ```text
-agentfeeds-skill-v0.1.1.zip
+agentfeeds-skill-v0.1.2.zip
 ```
 
 Demo asset:

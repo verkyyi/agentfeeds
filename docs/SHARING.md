@@ -75,7 +75,7 @@ python3 scripts/agentfeeds.py admin templates test personal/status --json
 Title:
 
 ```text
-Agent Feeds v0.1.1: Local ambient context for personal agents
+Agent Feeds v0.1.2: Local ambient context for personal agents
 ```
 
 Body:

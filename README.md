@@ -29,6 +29,28 @@ AgentFeeds moves that work into background refresh plus an agent-facing read pat
 
 Agents need feeds, not just memory. Memory remembers stable facts. AgentFeeds keeps fresh context available.
 
+## How AgentFeeds Is Different
+
+AgentFeeds is intentionally narrow: it is a refreshable local state layer for agents, not another all-purpose memory system.
+
+- **Not memory:** durable preferences and identity still belong in memory; volatile state stays in timestamped feeds.
+- **Not RAG:** streams are subscribed, structured, and refreshed on a schedule instead of being only semantically searched after the fact.
+- **Not an MCP replacement:** MCP exposes tools; AgentFeeds keeps tool/API/local-source results warm on disk so an agent can inspect state before deciding what to call.
+- **Not a dashboard:** humans can inspect the files, but the primary reader is the agent via `brief`, `search`, and `streams read`.
+
+The practical promise is simple: before your personal agent searches the web, scans skills, re-fetches APIs, or asks you to repeat context, it can check what fresh local streams already exist.
+
+## Trust And Safety Model
+
+AgentFeeds is designed for local-first, inspectable operation:
+
+- Stream state is stored as JSON under `~/.agentfeeds/`; operators can audit what the agent sees.
+- Built-in public/API templates use explicit parameters and schemas, with a frozen catalog bundled for first-run reliability.
+- Local command templates run without a shell, with argv arrays, timeouts, and output-size limits.
+- New `local_command` templates are safety-gated: they do not execute until the operator approves the exact template and command digest interactively.
+- Agents are instructed to use `subscribe`, `refresh`, and `streams read` instead of hand-writing state files.
+- Secrets should be referenced through AgentFeeds secret slots, not committed into template YAML.
+
 ## Try It With Your Agent
 
 After installing the skill, you should not need to operate AgentFeeds directly. Ask your agent for outcomes in natural language:
@@ -71,19 +93,35 @@ With AgentFeeds, the agent first checks the local stream brief/search/read path,
 
 ![AgentFeeds interactive session demo](assets/agentfeeds-demo.gif)
 
+A healthy session-start brief looks like this:
+
+```xml
+<agentfeeds>
+Available local streams by group:
+- calendar: work-calendar
+- mac: reminders-pending, mail-unread
+- dev: github-notifications, project-git-status
+- news: openai-com, anthropic-com
+</agentfeeds>
+```
+
+The brief is intentionally compact. It tells the agent what fresh local context exists, then the agent reads only relevant streams with `search` or `streams read`.
+
 ## Install The Skill
 
 Download the latest skill bundle from the bundle release and unpack it into your agent's skills directory:
 
 ```text
-https://github.com/verkyyi/agentfeeds/releases/tag/skill-v0.1.1
+https://github.com/verkyyi/agentfeeds/releases/tag/skill-v0.1.2
 ```
 
 The release asset is:
 
 ```text
-agentfeeds-skill-v0.1.1.zip
+agentfeeds-skill-v0.1.2.zip
 ```
+
+Release notes are tracked in [CHANGELOG.md](CHANGELOG.md) and on the [skill-v0.1.2 GitHub release](https://github.com/verkyyi/agentfeeds/releases/tag/skill-v0.1.2).
 
 The unpacked skill folder contains:
 
@@ -257,7 +295,7 @@ Restart Hermes after installation.
 This repo is the source tree for the skill. Release artifacts should be built as portable skill bundles:
 
 ```bash
-python3 scripts/bundle/build_skill_bundle.py --output dist/agentfeeds-skill-v0.1.1.zip
+python3 scripts/bundle/build_skill_bundle.py --output dist/agentfeeds-skill-v0.1.2.zip
 ```
 
 The bundle intentionally includes only the skill surface, frozen catalog snapshot, and runtime files needed by agents. Repo-only docs, tests, build outputs, and caches are excluded.
@@ -295,6 +333,8 @@ MCP is a tool interface. AgentFeeds is a local state substrate: background refre
 RSS is one template type. AgentFeeds also supports local files, GitHub releases/issues/PRs, ICS calendars, weather, exchange rates, and operator-approved local commands. The product is the subscription/state layer for agents, not a human feed UI.
 
 ## More Docs
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 See [docs/DEMO.md](docs/DEMO.md) for the demo transcript and talking points.
 

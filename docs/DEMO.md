@@ -1,6 +1,6 @@
 # Agent Feeds Demo
 
-This is the short launch demo for Agent Feeds v0.1.1.
+This is the short launch demo for Agent Feeds v0.1.2.
 
 ## Narrative
 
