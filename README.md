@@ -1,8 +1,8 @@
 # AgentFeeds
 
-Ready-to-read context cache for personal agents.
+Ready-to-read fresh context for personal agents.
 
-AgentFeeds keeps changing context warm on disk — calendars, inboxes, reminders, GitHub, RSS/news, weather, notes, dashboards, and approved local sources — so agents can read compact local stream state before scanning skills, searching the web, re-fetching APIs, or asking the user to repeat context.
+AgentFeeds keeps changing local and public context warm on disk — calendars, inboxes, reminders, GitHub, RSS/news, weather, finance, notes, dashboards, and approved local sources — so agents can check what is already fresh before scanning skills, searching the web, re-fetching APIs, or asking you to repeat context.
 
 The primary audience for this repository is people building, operating, publishing, or auditing skill-based personal agents. The Python package and CLI are implementation details for the agent to drive.
 
@@ -25,9 +25,9 @@ AgentFeeds moves that work into background refresh plus an agent-facing read pat
 | Memory | Durable facts, preferences, stable conventions | Today's inbox, latest issues, weather, dashboards |
 | Skills | Teaching the agent how to do a workflow | Storing changing source data |
 | Tools | One-off actions and live calls | Repeatedly rediscovering the same context |
-| AgentFeeds | Fresh, changing, ready-to-read context cache | Durable identity or preferences |
+| AgentFeeds | Ready-to-read fresh context from subscribed streams | Durable identity or preferences |
 
-Agents need feeds, not just memory. Memory remembers stable facts. AgentFeeds keeps fresh context available.
+Agents need feeds, not just memory. Memory remembers stable facts. AgentFeeds keeps fresh context ready to read.
 
 ## How AgentFeeds Is Different
 
